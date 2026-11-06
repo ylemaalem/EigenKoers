@@ -102,6 +102,20 @@
   .phase-pill {
     @apply flex-1 py-1.5 px-2 rounded-lg text-[11px] font-extrabold border-2 transition;
   }
+
+  /* Admin-portaal (donker) */
+  .admin-input {
+    @apply w-full bg-slate-800 border border-slate-700 text-xs font-bold text-slate-100 px-2.5 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 [color-scheme:dark];
+  }
+  .admin-chip {
+    @apply text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white hover:border-slate-500 transition;
+  }
+  .admin-chip-on {
+    @apply border-amber-400 bg-amber-500/15 text-amber-200;
+  }
+  .admin-kpi {
+    @apply bg-slate-900 border border-slate-800 p-3.5 rounded-2xl min-w-0;
+  }
 }
 
 .spinner {

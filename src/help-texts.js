@@ -120,4 +120,22 @@ export const HELP = {
 
   meldingen:
     'Hier zie je wat er is gebeurd: reacties van je netwerk (zoals een ander voorstel voor een opdracht) en meldingen die jij hebt gestuurd. Nieuwe reacties krijgen een rood bolletje bij 🔔.',
+
+  // Super Admin-portaal
+  admin:
+    'Dit is het beheerdersscherm. Alleen de beheerder ziet dit. Je ziet hier cijfers over het gebruik van EigenKoers, <strong>zonder namen</strong>. Zo kun je laten zien wat de app oplevert, bijvoorbeeld bij een subsidieaanvraag.',
+  'admin-period':
+    'Kies van welke periode je de cijfers wilt zien. Laat je de datums leeg (of kies <em>Alles</em>), dan zie je alles. Het aantal cliënten, netwerkleden en de stoplicht-verdeling gaan altijd over <strong>vandaag</strong>.',
+  'admin-kpi':
+    'De vier belangrijkste cijfers. <strong>Informele zorg</strong>: hoeveel tijd het netwerk hielp. <strong>Pad B</strong>: hoe vaak cliënten de slimme stap kozen. <strong>Bespaard</strong>: een schatting van kosten die niet nodig waren. Bij <em>Rekenregels</em> staat hoe dit wordt berekend.',
+  'admin-mood':
+    'Hoeveel cliënten nu op groen, oranje of rood staan. Demo-profielen tellen niet mee.',
+  'admin-stats':
+    'Meer details over de gekozen periode: hoe vaak er op de Keuze-Tafel is gekozen, hoe vaak het stoplicht wisselde en hoeveel opdrachten het netwerk oppakte.',
+  'admin-log':
+    'Elke regel is één gebeurtenis. Er staan geen namen in. De <strong>cliëntcode</strong> is een geheime code: dezelfde cliënt heeft steeds dezelfde code, maar niemand kan zien wie het is. Met het keuzemenu kies je welke soort gebeurtenissen je ziet.',
+  'admin-export':
+    'Download de cijfers als bestand voor Excel. <strong>Logboek</strong>: alle regels uit de gekozen periode (en het filter). <strong>Samenvatting</strong>: de totalen en de rekenregels. Handig voor ZonMw of de gemeente.',
+  'admin-rules':
+    'Zo rekent EigenKoers. De bedragen zijn <strong>schattingen</strong> op basis van vaste afspraken, geen echte rekeningen. Zo is het voor iedereen duidelijk hoe een bedrag tot stand komt.',
 };

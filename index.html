@@ -173,6 +173,9 @@
             👥 2. Netwerk Weergave
             <span id="network-unread-badge" hidden class="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-rose-500 text-white rounded-full text-[9px] flex items-center justify-center font-extrabold">!</span>
           </button>
+          <button type="button" data-action="switch-mode" data-mode="admin" id="mode-btn-admin" hidden class="shrink-0 py-1.5 px-2 rounded-lg text-xs font-bold text-amber-300 hover:text-white transition-all text-center">
+            🔐 Admin
+          </button>
         </div>
 
         <!-- Kiezer welk netwerk (alleen in netwerk-modus) -->
@@ -593,6 +596,130 @@
               <button type="submit" class="btn-primary shrink-0">Koppelen</button>
             </form>
           </div>
+        </main>
+      </div>
+
+      <!-- =========================================================== -->
+      <!-- DASHBOARD 3: SUPER ADMIN (alleen zichtbaar voor beheerder)  -->
+      <!-- =========================================================== -->
+      <div id="dashboard-admin" hidden class="flex-1 flex flex-col overflow-hidden bg-slate-950 text-white">
+        <header class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 px-5 pt-4 pb-4 border-b border-slate-800 shrink-0">
+          <div class="flex justify-between items-start gap-3">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5" data-help-anchor>
+                <span class="text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 px-2 py-0.5 rounded">Super Admin</span>
+                <button type="button" class="help-btn help-btn-light" data-help="admin" data-help-dark aria-label="Uitleg beheerdersscherm" aria-expanded="false">?</button>
+              </div>
+              <h1 class="text-lg font-black mt-1 leading-tight">Beheer &amp; Subsidie-Impact</h1>
+              <p class="text-[11px] text-indigo-300 font-semibold truncate">Beheerder: <strong id="admin-email">-</strong></p>
+            </div>
+            <div class="flex flex-col items-end gap-1 shrink-0">
+              <button type="button" data-action="admin-refresh" class="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg">↻ Vernieuwen</button>
+              <button type="button" data-action="open-account" class="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg" aria-label="Account">👤 Account</button>
+            </div>
+          </div>
+        </header>
+
+        <main id="admin-main" class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
+          <!-- Periode -->
+          <section class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl space-y-2.5">
+            <div class="field-row" data-help-anchor>
+              <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-300">📅 Periode</h2>
+              <button type="button" class="help-btn help-btn-light" data-help="admin-period" data-help-dark aria-label="Uitleg periode" aria-expanded="false">?</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="block">
+                <span class="text-[10px] font-bold text-slate-400">Van</span>
+                <input type="date" id="admin-from" data-change="admin-period" class="admin-input mt-0.5">
+              </label>
+              <label class="block">
+                <span class="text-[10px] font-bold text-slate-400">Tot en met</span>
+                <input type="date" id="admin-to" data-change="admin-period" class="admin-input mt-0.5">
+              </label>
+            </div>
+            <div class="flex flex-wrap gap-1.5" id="admin-presets">
+              <button type="button" data-action="admin-preset" data-preset="all" class="admin-chip">Alles</button>
+              <button type="button" data-action="admin-preset" data-preset="month" class="admin-chip">Deze maand</button>
+              <button type="button" data-action="admin-preset" data-preset="prev-month" class="admin-chip">Vorige maand</button>
+              <button type="button" data-action="admin-preset" data-preset="year" class="admin-chip">Dit jaar</button>
+            </div>
+          </section>
+
+          <!-- KPI's -->
+          <section class="space-y-2">
+            <div class="field-row" data-help-anchor>
+              <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-300">📈 Kerncijfers</h2>
+              <button type="button" class="help-btn help-btn-light" data-help="admin-kpi" data-help-dark aria-label="Uitleg kerncijfers" aria-expanded="false">?</button>
+            </div>
+            <div id="admin-kpi-grid" class="grid grid-cols-2 gap-2.5"></div>
+          </section>
+
+          <!-- Stoplicht-verdeling -->
+          <section class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+            <div class="field-row" data-help-anchor>
+              <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-300">🚦 Stoplicht-verdeling (nu)</h2>
+              <button type="button" class="help-btn help-btn-light" data-help="admin-mood" data-help-dark aria-label="Uitleg stoplicht-verdeling" aria-expanded="false">?</button>
+            </div>
+            <div id="admin-mood-distribution" class="space-y-2"></div>
+          </section>
+
+          <!-- Keuze-Tafel & Netwerk -->
+          <section class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+            <div class="field-row" data-help-anchor>
+              <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-300">⚖️ Keuze-Tafel, Stoplicht &amp; Netwerk</h2>
+              <button type="button" class="help-btn help-btn-light" data-help="admin-stats" data-help-dark aria-label="Uitleg details" aria-expanded="false">?</button>
+            </div>
+            <div id="admin-stats" class="space-y-2"></div>
+          </section>
+
+          <!-- Logboek -->
+          <section class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+            <div class="field-row" data-help-anchor>
+              <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-300">📊 Anoniem Impact-Logboek</h2>
+              <button type="button" class="help-btn help-btn-light" data-help="admin-log" data-help-dark aria-label="Uitleg logboek" aria-expanded="false">?</button>
+            </div>
+            <label class="block">
+              <span class="sr-only">Filter op soort gebeurtenis</span>
+              <select id="admin-log-filter" data-change="admin-filter" class="admin-input">
+                <option value="ALL">Alle gebeurtenissen</option>
+                <option value="STOPLICHT_TRANSITIE">🚦 Stoplicht gewisseld</option>
+                <option value="KEUZETAFEL_PAD_B">🛡️ Keuze-Tafel: Pad B</option>
+                <option value="KEUZETAFEL_PAD_A">⚡ Keuze-Tafel: Pad A</option>
+                <option value="NETWERK_OPDRACHT_GEACCEPTEERD">🤝 Netwerk-opdracht geaccepteerd</option>
+              </select>
+            </label>
+            <div id="admin-log-count" class="text-[11px] text-slate-400 font-semibold"></div>
+            <div id="admin-events-log" class="space-y-2"></div>
+            <button type="button" id="admin-load-more" data-action="admin-load-more" hidden class="w-full text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 py-2.5 rounded-xl">Meer laden</button>
+          </section>
+
+          <!-- Export -->
+          <section class="bg-slate-900 border border-emerald-800/60 p-4 rounded-2xl space-y-3">
+            <div class="field-row" data-help-anchor>
+              <h2 class="text-xs font-extrabold uppercase tracking-wider text-emerald-300">⬇️ Download voor subsidie (ZonMw / Gemeente)</h2>
+              <button type="button" class="help-btn help-btn-light" data-help="admin-export" data-help-dark aria-label="Uitleg downloaden" aria-expanded="false">?</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" data-action="admin-export-log" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-3 py-3 rounded-xl shadow disabled:opacity-60">📄 Logboek (CSV)</button>
+              <button type="button" data-action="admin-export-summary" class="bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-extrabold px-3 py-3 rounded-xl disabled:opacity-60">📋 Samenvatting (CSV)</button>
+            </div>
+            <p class="text-[11px] text-slate-400 leading-relaxed">De bestanden openen direct in Excel. Ze volgen de gekozen periode. Het logboek volgt ook het filter.</p>
+          </section>
+
+          <!-- Rekenregels -->
+          <section class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-2.5">
+            <div class="field-row" data-help-anchor>
+              <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-300">🧮 Rekenregels</h2>
+              <button type="button" class="help-btn help-btn-light" data-help="admin-rules" data-help-dark aria-label="Uitleg rekenregels" aria-expanded="false">?</button>
+            </div>
+            <ul class="text-[11px] text-slate-300 space-y-1.5 leading-relaxed list-disc pl-4">
+              <li><strong class="text-white">Stoplicht:</strong> elke wissel waarbij de cliënt een eigen actie kiest. Herstel van oranje of rood naar groen telt als 30 minuten informele zorg en €45 (maximaal 1 keer per dag per cliënt).</li>
+              <li><strong class="text-white">Keuze-Tafel:</strong> Pad B (slimme stap) telt als €55 bespaarde schadelast. Pad A telt als €0.</li>
+              <li><strong class="text-white">Netwerk-opdracht:</strong> telt 1 keer per opdracht, als een netwerklid hem accepteert of de cliënt een tegenvoorstel goedkeurt. Kort = 30 min, 1 uur = 60 min, 2-3 uur = 150 min, dagdeel = 240 min. Bespaarde WMO-kosten: €65 per uur.</li>
+            </ul>
+          </section>
+
+          <p class="text-[11px] text-slate-500 leading-relaxed px-1 pb-2">🔒 Het logboek is anoniem: er staan geen namen, e-mailadressen of eigen teksten in. Demo-profielen tellen niet mee. Niemand kan regels toevoegen of wijzigen: de database schrijft ze zelf.</p>
         </main>
       </div>
     </div>

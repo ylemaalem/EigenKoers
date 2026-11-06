@@ -46,6 +46,8 @@ const state = {
   sigEditing: null,
   realtimeChannel: null,
   pollTimer: null,
+  isAdmin: false,
+  admin: { from: '', to: '', type: 'ALL', data: null, logs: [], total: 0, request: 0 },
 };
 
 const activeProfile = () => state.profiles.find((p) => p.id === state.activeProfileId) || null;
@@ -122,7 +124,9 @@ function resetState() {
     user: null, profiles: [], activeProfileId: null, loadedProfileId: null, plans: {}, goals: [], members: [],
     tasks: [], choices: [], notifications: [], networks: [], networkMemberId: null, networkView: null,
     editingGoalId: null, editingTaskId: null, editingMemberId: null,
+    isAdmin: false, admin: { from: '', to: '', type: 'ALL', data: null, logs: [], total: 0, request: 0 },
   });
+  $('mode-btn-admin').hidden = true;
   for (const id of ['account-modal', 'mood-modal', 'goal-editor-modal', 'signaling-editor-modal', 'invite-share-modal', 'notifications-modal', 'confirm-modal', 'info-modal']) closeModal(id);
 }
 
@@ -250,13 +254,19 @@ async function afterLogin(user) {
   }
 
   try {
-    await Promise.all([loadProfiles(), loadNetworks()]);
+    await Promise.all([loadProfiles(), loadNetworks(), loadAdminFlag()]);
   } catch (err) {
     return showFatal('Kan je gegevens niet laden', friendlyError(err));
   }
 
-  if (!state.profiles.length && !state.networks.length) return showOnboarding();
+  if (!state.profiles.length && !state.networks.length && !state.isAdmin) return showOnboarding();
   await enterApp();
+}
+
+// Beheerder? (de database beslist; mislukt de controle, dan gewoon geen admin)
+async function loadAdminFlag() {
+  const { data, error } = await sb.rpc('am_i_admin');
+  state.isAdmin = !error && data === true;
 }
 
 function showOnboarding() {
@@ -370,29 +380,38 @@ async function enterApp() {
   const storedMember = local.get(userKey('networkMember'));
   if (!state.networkMemberId && storedMember) state.networkMemberId = storedMember;
   let mode = local.get(userKey('mode')) || 'client';
-  if (!state.profiles.length) mode = 'network';
+  if (mode === 'admin' && !state.isAdmin) mode = 'client';
+  if (!state.profiles.length && mode === 'client') {
+    mode = state.isAdmin && !state.networks.length ? 'admin' : 'network';
+  }
   await switchMode(mode);
 }
 
 async function switchMode(mode) {
+  if (mode === 'admin' && !state.isAdmin) mode = 'client';
   state.mode = mode;
   local.set(userKey('mode'), mode);
-  const isClient = mode === 'client';
-  $('dashboard-client').hidden = !isClient;
-  $('dashboard-network').hidden = isClient;
-  $('network-viewer-bar').hidden = isClient;
-  $('mode-btn-client').className = isClient
-    ? 'flex-1 py-1.5 px-2 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow transition-all text-center'
-    : 'flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition-all text-center';
-  $('mode-btn-network').className = isClient
-    ? 'flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition-all text-center relative'
-    : 'flex-1 py-1.5 px-2 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow transition-all text-center relative';
+  $('dashboard-client').hidden = mode !== 'client';
+  $('dashboard-network').hidden = mode !== 'network';
+  $('dashboard-admin').hidden = mode !== 'admin';
+  $('network-viewer-bar').hidden = mode !== 'network';
+  $('mode-btn-admin').hidden = !state.isAdmin;
+  // Met de extra admin-knop iets compacter, zodat alles op één regel past
+  const size = state.isAdmin ? 'text-[11px] px-1.5' : 'text-xs px-2';
+  const base = `py-1.5 ${size} rounded-lg font-bold transition-all text-center`;
+  const off = 'text-slate-300 hover:text-white';
+  $('mode-btn-client').className = `flex-1 ${base} ${mode === 'client' ? 'bg-indigo-600 text-white shadow' : off}`;
+  $('mode-btn-network').className = `flex-1 ${base} relative ${mode === 'network' ? 'bg-emerald-600 text-white shadow' : off}`;
+  $('mode-btn-admin').className = `shrink-0 ${base} ${mode === 'admin' ? 'bg-amber-500 text-slate-950 shadow' : 'text-amber-300 hover:text-white'}`;
 
-  if (isClient) {
+  if (mode === 'client') {
     stopPolling();
     await openClientDashboard();
-  } else {
+  } else if (mode === 'network') {
     await openNetworkDashboard();
+  } else {
+    stopPolling();
+    await openAdminDashboard();
   }
 }
 
@@ -499,7 +518,9 @@ function renderNoProfile() {
     <div class="card space-y-3 text-center">
       <div class="text-4xl">🧭</div>
       <h2 class="text-base font-black text-slate-900">Je hebt nog geen eigen profiel</h2>
-      <p class="text-xs text-slate-600 leading-relaxed">Je kijkt nu alleen mee in het netwerk van iemand anders. Wil je EigenKoers ook zelf gebruiken, of begeleid je cliënten? Maak dan een profiel aan.</p>
+      <p class="text-xs text-slate-600 leading-relaxed">${state.networks.length
+        ? 'Je kijkt nu alleen mee in het netwerk van iemand anders. Wil je EigenKoers ook zelf gebruiken, of begeleid je cliënten? Maak dan een profiel aan.'
+        : 'Wil je EigenKoers zelf gebruiken, of begeleid je cliënten? Maak dan een profiel aan. Je kunt ook eerst het voorbeeldprofiel bekijken.'}</p>
       <button type="button" data-action="open-account" class="btn-primary w-full">✨ Blanco profiel maken</button>
       <button type="button" data-action="load-demo" class="btn-soft w-full border border-slate-300">🧪 Voorbeeld/Demo-profiel (Daan Vermeulen) laden</button>
     </div>
@@ -1179,7 +1200,13 @@ async function choosePath(pad, button) {
   if (!data) return;
   const chosen = pad === 'A' ? data.padA.badge : data.padB.badge;
   await withBusy(button, async () => {
-    const { error } = await sb.from('saved_choices').insert({ profile_id: state.activeProfileId, title: data.title.slice(0, 300), chosen_path: chosen.slice(0, 300) });
+    const { error } = await sb.from('saved_choices').insert({
+      profile_id: state.activeProfileId,
+      title: data.title.slice(0, 300),
+      chosen_path: chosen.slice(0, 300),
+      scenario_key: state.scenarioKey in VISUAL_SCENARIOS || state.scenarioKey === 'custom' ? state.scenarioKey : null,
+      pad: pad === 'A' ? 'A' : 'B',
+    });
     if (error) return toastError(error, 'Keuze bewaren lukte niet');
     const viewers = state.members.filter((m) => m.can_see_finance).map((m) => firstName(m.name));
     await logNotification({
@@ -2087,6 +2114,352 @@ async function redeemInviteCode(form) {
 }
 
 // =============================================================================
+// DASHBOARD 3: SUPER ADMIN (anoniem impact-logboek)
+// =============================================================================
+const ADMIN_PAGE = 100;
+const IMPACT_EVENTS = {
+  STOPLICHT_TRANSITIE: { icon: '🚦', label: 'Stoplicht gewisseld', ring: 'border-indigo-500/40' },
+  KEUZETAFEL_PAD_A: { icon: '⚡', label: 'Keuze-Tafel: Pad A (impuls)', ring: 'border-amber-500/40' },
+  KEUZETAFEL_PAD_B: { icon: '🛡️', label: 'Keuze-Tafel: Pad B (slimme stap)', ring: 'border-emerald-500/40' },
+  NETWERK_OPDRACHT_GEACCEPTEERD: { icon: '🤝', label: 'Netwerk-opdracht geaccepteerd', ring: 'border-sky-500/40' },
+};
+const nf = new Intl.NumberFormat('nl-NL');
+const nf1 = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 });
+const euroNl = (n) => `€ ${nf.format(Math.round(Number(n) || 0))}`;
+const hoursNl = (minutes) => nf1.format((Number(minutes) || 0) / 60);
+
+function isoDay(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function parseDay(value, addDays = 0) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + addDays);
+}
+
+// Periode als [van, tot) in UTC voor de database ("tot en met" = begin van de dag erna)
+function adminRange() {
+  const from = parseDay(state.admin.from);
+  const to = parseDay(state.admin.to, 1);
+  return { p_from: from ? from.toISOString() : null, p_to: to ? to.toISOString() : null };
+}
+
+function adminPeriodLabel() {
+  const { from, to } = state.admin;
+  const fmt = (s) => parseDay(s).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (!from && !to) return 'Alle gegevens';
+  if (from && to) return `${fmt(from)} t/m ${fmt(to)}`;
+  return from ? `Vanaf ${fmt(from)}` : `Tot en met ${fmt(to)}`;
+}
+
+function adminLogQuery(select = '*', options) {
+  const { p_from, p_to } = adminRange();
+  let q = sb.from('anonymous_impact_logs').select(select, options);
+  if (p_from) q = q.gte('created_at', p_from);
+  if (p_to) q = q.lt('created_at', p_to);
+  if (state.admin.type !== 'ALL') q = q.eq('event_type', state.admin.type);
+  return q;
+}
+
+async function openAdminDashboard() {
+  $('admin-email').textContent = state.user?.email || '-';
+  $('admin-from').value = state.admin.from;
+  $('admin-to').value = state.admin.to;
+  $('admin-log-filter').value = state.admin.type;
+  if (!state.admin.data) renderAdminLoading();
+  await loadAdmin();
+}
+
+function renderAdminLoading() {
+  $('admin-kpi-grid').innerHTML = '<div class="col-span-2 flex justify-center py-6"><div class="spinner"></div></div>';
+  $('admin-mood-distribution').innerHTML = '';
+  $('admin-stats').innerHTML = '';
+  $('admin-events-log').innerHTML = '';
+  $('admin-log-count').textContent = '';
+}
+
+async function loadAdmin({ silent = false } = {}) {
+  const request = ++state.admin.request;
+  const [dash, logs] = await Promise.all([
+    sb.rpc('admin_dashboard', adminRange()),
+    adminLogQuery('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, ADMIN_PAGE - 1),
+  ]);
+  if (request !== state.admin.request) return; // ondertussen ander filter gekozen
+  const error = dash.error || logs.error;
+  if (error) {
+    if (!silent) toastError(error, 'Admin-gegevens laden lukte niet');
+    if (error.code === '42501') {
+      // Geen beheerder (meer): terug naar het eigen dashboard
+      state.isAdmin = false;
+      return switchMode('client');
+    }
+    return;
+  }
+  state.admin.data = dash.data;
+  state.admin.logs = logs.data || [];
+  state.admin.total = logs.count ?? state.admin.logs.length;
+  renderAdmin();
+}
+
+async function loadMoreAdminLogs(button) {
+  await withBusy(button, async () => {
+    const start = state.admin.logs.length;
+    const request = state.admin.request;
+    const { data, error } = await adminLogQuery('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(start, start + ADMIN_PAGE - 1);
+    if (request !== state.admin.request) return;
+    if (error) return toastError(error, 'Meer laden lukte niet');
+    state.admin.logs.push(...(data || []));
+    renderAdminLog();
+  });
+}
+
+function renderAdmin() {
+  renderAdminPresets();
+  renderAdminKpis();
+  renderAdminMood();
+  renderAdminStats();
+  renderAdminLog();
+}
+
+function renderAdminPresets() {
+  const active = adminActivePreset();
+  document.querySelectorAll('#admin-presets [data-preset]').forEach((b) => {
+    b.className = 'admin-chip' + (b.dataset.preset === active ? ' admin-chip-on' : '');
+  });
+}
+
+function presetRange(preset) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  switch (preset) {
+    case 'month': return { from: isoDay(new Date(y, m, 1)), to: isoDay(now) };
+    case 'prev-month': return { from: isoDay(new Date(y, m - 1, 1)), to: isoDay(new Date(y, m, 0)) };
+    case 'year': return { from: isoDay(new Date(y, 0, 1)), to: isoDay(now) };
+    default: return { from: '', to: '' };
+  }
+}
+
+function adminActivePreset() {
+  const { from, to } = state.admin;
+  return ['all', 'month', 'prev-month', 'year'].find((p) => {
+    const r = presetRange(p);
+    return r.from === from && r.to === to;
+  }) || null;
+}
+
+function kpiCard(icon, title, value, sub) {
+  return `
+    <div class="admin-kpi">
+      <div class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1"><span>${icon}</span><span class="truncate">${title}</span></div>
+      <div class="text-xl font-black text-white mt-1 leading-tight break-words">${value}</div>
+      <div class="text-[10px] text-slate-400 mt-1 leading-snug">${sub}</div>
+    </div>`;
+}
+
+function renderAdminKpis() {
+  const d = state.admin.data;
+  const choices = d.pad_a + d.pad_b;
+  const pctB = choices ? Math.round((d.pad_b / choices) * 100) : null;
+  $('admin-kpi-grid').innerHTML = [
+    kpiCard('👥', 'Cliënten &amp; netwerk', `${nf.format(d.clients)} <span class="text-xs font-bold text-slate-400">cliënten</span>`,
+      `${nf.format(d.members)} netwerkleden, waarvan ${nf.format(d.members_joined)} gekoppeld`),
+    kpiCard('⏱️', 'Informele zorg', `${hoursNl(d.informal_minutes)} <span class="text-xs font-bold text-slate-400">uur</span>`,
+      `${nf.format(d.network_tasks)} netwerk-opdrachten · ${nf.format(d.recoveries)}× herstel naar groen`),
+    kpiCard('⚖️', 'Pad B gekozen', pctB === null ? '–' : `${pctB}%`,
+      choices ? `${nf.format(d.pad_b)} van ${nf.format(choices)} keuzes op de Keuze-Tafel` : 'Nog geen keuzes in deze periode'),
+    kpiCard('💶', 'Bespaard (schatting)', euroNl(d.saved_euros), 'WMO-kosten en schadelast samen'),
+  ].join('');
+}
+
+function renderAdminMood() {
+  const mood = state.admin.data.mood;
+  const total = mood.green + mood.orange + mood.red + mood.none;
+  const rows = [
+    { key: 'green', label: 'Groen', emoji: '🟢', bar: 'bg-emerald-500' },
+    { key: 'orange', label: 'Oranje', emoji: '🟠', bar: 'bg-amber-500' },
+    { key: 'red', label: 'Rood', emoji: '🔴', bar: 'bg-rose-500' },
+    { key: 'none', label: 'Nog geen kleur', emoji: '⚪', bar: 'bg-slate-500' },
+  ];
+  $('admin-mood-distribution').innerHTML = total
+    ? rows.map((r) => {
+        const n = mood[r.key];
+        const pct = total ? Math.round((n / total) * 100) : 0;
+        return `
+          <div>
+            <div class="flex justify-between text-xs font-bold text-slate-200"><span>${r.emoji} ${r.label}</span><span>${nf.format(n)} <span class="text-slate-500 font-semibold">(${pct}%)</span></span></div>
+            <div class="h-2 bg-slate-800 rounded-full mt-1 overflow-hidden"><div class="h-full ${r.bar} rounded-full" style="width:${pct}%"></div></div>
+          </div>`;
+      }).join('')
+    : '<div class="text-xs text-slate-400 bg-slate-800/60 border border-dashed border-slate-700 rounded-xl p-3 text-center">Nog geen cliënt-profielen (demo-profielen tellen niet mee).</div>';
+}
+
+function renderAdminStats() {
+  const d = state.admin.data;
+  const row = (icon, label, value) => `
+    <div class="flex justify-between items-center gap-3 text-xs bg-slate-800/60 border border-slate-800 rounded-xl px-3 py-2">
+      <span class="text-slate-300 font-semibold">${icon} ${label}</span>
+      <span class="font-extrabold text-white text-right shrink-0">${value}</span>
+    </div>`;
+  $('admin-stats').innerHTML = [
+    row('🛡️', 'Pad B (slimme stap)', nf.format(d.pad_b)),
+    row('⚡', 'Pad A (impuls)', nf.format(d.pad_a)),
+    row('🚦', 'Stoplicht-wissels', nf.format(d.mood_events)),
+    row('💚', 'Herstel naar groen (meegeteld)', nf.format(d.recoveries)),
+    row('🤝', 'Netwerk-opdrachten opgepakt', `${nf.format(d.network_tasks)} · ${hoursNl(d.network_minutes)} uur`),
+    row('🔑', 'Unieke cliënten in het logboek', nf.format(d.unique_clients)),
+    row('👤', 'Accounts in totaal', nf.format(d.accounts)),
+  ].join('') + `<p class="text-[10px] text-slate-500 pt-1">Periode: ${esc(adminPeriodLabel())}</p>`;
+}
+
+function renderAdminLog() {
+  const { logs, total } = state.admin;
+  $('admin-log-count').textContent = total
+    ? `${nf.format(logs.length)} van ${nf.format(total)} gebeurtenissen · ${adminPeriodLabel()}`
+    : '';
+  $('admin-events-log').innerHTML = logs.length
+    ? logs.map((l) => {
+        const meta = IMPACT_EVENTS[l.event_type] || { icon: '•', label: l.event_type, ring: 'border-slate-700' };
+        const badges = [
+          l.informal_minutes ? `<span class="bg-indigo-500/20 text-indigo-200 px-1.5 py-0.5 rounded">+${nf.format(l.informal_minutes)} min</span>` : '',
+          l.saved_euros ? `<span class="bg-emerald-500/20 text-emerald-200 px-1.5 py-0.5 rounded">+${euroNl(l.saved_euros)}</span>` : '',
+        ].join('');
+        return `
+          <div class="bg-slate-800/60 border ${meta.ring} rounded-xl p-3 space-y-1">
+            <div class="flex justify-between items-start gap-2">
+              <span class="text-xs font-extrabold text-white">${meta.icon} ${esc(meta.label)}</span>
+              <span class="text-[10px] text-slate-400 shrink-0">${esc(fmtWhen(l.created_at))}</span>
+            </div>
+            <p class="text-[11px] text-slate-300 leading-snug break-words">${esc(l.detail || '')}</p>
+            <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
+              <span class="text-slate-500 font-mono">Cliëntcode ${esc(String(l.client_hash).slice(0, 8))}</span>${badges}
+            </div>
+          </div>`;
+      }).join('')
+    : `<div class="text-xs text-slate-400 bg-slate-800/60 border border-dashed border-slate-700 rounded-xl p-4 text-center leading-relaxed">
+        Nog geen gebeurtenissen${state.admin.type !== 'ALL' || state.admin.from || state.admin.to ? ' voor dit filter of deze periode' : ''}.<br>
+        Gebeurtenissen komen vanzelf binnen als cliënten het stoplicht wisselen, op de Keuze-Tafel kiezen of als het netwerk een opdracht oppakt.
+      </div>`;
+  $('admin-load-more').hidden = logs.length >= total;
+}
+
+function setAdminPeriod(from, to) {
+  if (from && to && from > to) [from, to] = [to, from];
+  state.admin.from = from;
+  state.admin.to = to;
+  $('admin-from').value = from;
+  $('admin-to').value = to;
+  renderAdminPresets();
+  return loadAdmin();
+}
+
+// --- CSV (Excel, Nederlandse instellingen: puntkomma + UTF-8 met BOM) ---------
+function csvCell(value) {
+  let s = value === null || value === undefined ? '' : String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // voorkom formules in Excel
+  return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(filename, rows) {
+  const content = '﻿' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n') + '\r\n';
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function exportSuffix() {
+  const { from, to } = state.admin;
+  if (!from && !to) return `alles_${isoDay(new Date())}`;
+  return `${from || 'begin'}_tm_${to || isoDay(new Date())}`;
+}
+
+async function exportAdminLog(button) {
+  await withBusy(button, async () => {
+    const rows = [];
+    for (let start = 0; ; start += 1000) {
+      const { data, error } = await adminLogQuery('created_at, client_hash, event_type, detail, informal_minutes, saved_euros')
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(start, start + 999);
+      if (error) return toastError(error, 'Downloaden lukte niet');
+      rows.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+    if (!rows.length) return toast('Niets te downloaden', 'Er zijn geen gebeurtenissen voor deze periode of dit filter.', 'ℹ️', 'warn');
+    const header = ['Datum', 'Tijd', 'Cliëntcode (anoniem)', 'Gebeurteniscode', 'Gebeurtenis', 'Toelichting', 'Informele zorg (minuten)', 'Bespaarde kosten (euro)'];
+    const body = rows.map((l) => {
+      const d = new Date(l.created_at);
+      return [
+        isoDay(d),
+        d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }),
+        l.client_hash,
+        l.event_type,
+        IMPACT_EVENTS[l.event_type]?.label || l.event_type,
+        l.detail || '',
+        l.informal_minutes,
+        l.saved_euros,
+      ];
+    });
+    downloadCsv(`eigenkoers-impactlogboek_${exportSuffix()}.csv`, [header, ...body]);
+    toast('Download klaar ⬇️', `${nf.format(rows.length)} gebeurtenissen opgeslagen als CSV (opent in Excel).`, '📄', 'success');
+  });
+}
+
+async function exportAdminSummary(button) {
+  await withBusy(button, async () => {
+    const { data: d, error } = await sb.rpc('admin_dashboard', adminRange());
+    if (error) return toastError(error, 'Downloaden lukte niet');
+    const choices = d.pad_a + d.pad_b;
+    const rows = [
+      ['Onderdeel', 'Waarde'],
+      ['Rapport', 'EigenKoers – Anonieme impact-samenvatting'],
+      ['Periode', adminPeriodLabel()],
+      ['Gemaakt op', new Date(d.generated_at).toLocaleString('nl-NL')],
+      ['', ''],
+      ['Cliënten (nu, zonder demo)', d.clients],
+      ['Netwerkleden (nu)', d.members],
+      ['Netwerkleden gekoppeld (nu)', d.members_joined],
+      ['Stoplicht nu groen', d.mood.green],
+      ['Stoplicht nu oranje', d.mood.orange],
+      ['Stoplicht nu rood', d.mood.red],
+      ['Nog geen kleur gekozen', d.mood.none],
+      ['', ''],
+      ['Gebeurtenissen in periode', d.events],
+      ['Unieke cliënten in periode', d.unique_clients],
+      ['Uren geactiveerde informele zorg', hoursNl(d.informal_minutes)],
+      ['Bespaarde WMO-kosten en schadelast (euro)', d.saved_euros],
+      ['Keuze-Tafel: Pad A (impuls)', d.pad_a],
+      ['Keuze-Tafel: Pad B (slimme stap)', d.pad_b],
+      ['Percentage Pad B', choices ? `${Math.round((d.pad_b / choices) * 100)}%` : '–'],
+      ['Stoplicht-wissels', d.mood_events],
+      ['Herstel naar groen (meegeteld)', d.recoveries],
+      ['Netwerk-opdrachten opgepakt', d.network_tasks],
+      ['Uren hulp door netwerk', hoursNl(d.network_minutes)],
+      ['', ''],
+      ['Rekenregel stoplicht', 'Herstel oranje/rood naar groen = 30 min informele zorg + €45 (max. 1x per dag per cliënt)'],
+      ['Rekenregel Keuze-Tafel', 'Pad B = €55 bespaarde schadelast; Pad A = €0'],
+      ['Rekenregel netwerk-opdracht', 'Kort 30 min, 1 uur 60 min, 2-3 uur 150 min, dagdeel 240 min; €65 per uur bespaarde WMO-kosten; 1x per opdracht'],
+      ['Privacy', 'Anoniem: geen namen, e-mailadressen of eigen teksten. Demo-profielen tellen niet mee.'],
+    ];
+    downloadCsv(`eigenkoers-samenvatting_${exportSuffix()}.csv`, rows);
+    toast('Download klaar ⬇️', 'De samenvatting is opgeslagen als CSV (opent in Excel).', '📋', 'success');
+  });
+}
+
+// =============================================================================
 // REALTIME & VERVERSEN
 // =============================================================================
 let reloadTimer = null;
@@ -2289,6 +2662,15 @@ const ACTIONS = {
       await loadNetworkView();
     });
   },
+  // Admin
+  'admin-refresh': (el) => withBusy(el, () => loadAdmin()),
+  'admin-preset': (el) => {
+    const r = presetRange(el.dataset.preset);
+    return setAdminPeriod(r.from, r.to);
+  },
+  'admin-load-more': (el) => loadMoreAdminLogs(el),
+  'admin-export-log': (el) => exportAdminLog(el),
+  'admin-export-summary': (el) => exportAdminSummary(el),
   'net-accept': (el) => networkAccept(el.dataset.id, el),
   'net-toggle-counter': (el) => {
     const form = document.querySelector(`[data-form="counter"][data-id="${el.dataset.id}"]`);
@@ -2316,6 +2698,11 @@ const CHANGES = {
     syncMoodActionInput();
     setStepError(3, false);
     updateMoodStepChecks();
+  },
+  'admin-period': () => setAdminPeriod($('admin-from').value, $('admin-to').value),
+  'admin-filter': (el) => {
+    state.admin.type = el.value;
+    return loadAdmin();
   },
 };
 
@@ -2427,6 +2814,7 @@ function wireEvents() {
     if (document.visibilityState !== 'visible' || !state.user) return;
     if (state.mode === 'client' && state.loadedProfileId) scheduleClientRefresh();
     if (state.mode === 'network' && !$('screen-app').hidden) loadNetworkView({ silent: true });
+    if (state.mode === 'admin' && !$('screen-app').hidden) loadAdmin({ silent: true });
   });
 }
 
