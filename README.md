@@ -14,6 +14,19 @@ EigenKoers is een webapp voor cliënten in de ambulante begeleiding en hun netwe
 - **Uitnodigingen per e-mail**: met een persoonlijke link of code via de eigen mail-app, WhatsApp of kopiëren.
 - **Nieuwe profielen starten 100% blanco**. Met één knop laad je los daarvan het voorbeeldprofiel *Daan Vermeulen*.
 - Overal staat een **(?)-knop** met uitleg in eenvoudige B1-taal.
+- **🔐 Super Admin-portaal** (alleen voor de beheerder): kerncijfers (cliënten en netwerk, uren informele zorg, % Pad B, bespaarde kosten), stoplicht-verdeling, een filterbaar **anoniem impact-logboek** en CSV-downloads (logboek + samenvatting) voor subsidie-aanvragen bij ZonMw of de gemeente.
+
+### Anoniem impact-logboek
+
+De database logt zelf, via triggers. Gebruikers kunnen niets toevoegen of wijzigen, ook de beheerder niet. Er staan geen namen of eigen teksten in, alleen een geheime cliëntcode (HMAC). Demo-profielen tellen niet mee.
+
+| Gebeurtenis | Wanneer | Waarde |
+| --- | --- | --- |
+| `STOPLICHT_TRANSITIE` | andere kleur met eigen actie | herstel naar groen: 30 min + €45 (max. 1× per dag per cliënt) |
+| `KEUZETAFEL_PAD_A` / `_PAD_B` | keuze bewaard | Pad B: €55 |
+| `NETWERK_OPDRACHT_GEACCEPTEERD` | geaccepteerd of tegenvoorstel bevestigd (1× per opdracht) | 30 / 60 / 150 / 240 min, €65 per uur |
+
+Beheerders staan in `private.app_admins`. Iemand is beheerder als hij is ingelogd met een bevestigd account op dat e-mailadres. De functie `register` weigert beheerdersadressen. Een beheerdersaccount maak je daarom aan in Supabase via Authentication → Users → Add user.
 
 ## Techniek
 
