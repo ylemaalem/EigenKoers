@@ -3,6 +3,13 @@ from playwright.sync_api import sync_playwright
 
 DIST = sys.argv[1]
 PORT = int(os.environ.get("EK_PORT", "4180"))
+# Chrome-pad en screenshotmap zijn instelbaar, zodat de test op Linux, macOS en Windows draait.
+CHROME = os.environ.get("EK_CHROME") or next((c for c in ['/usr/bin/google-chrome',
+    r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'] if os.path.exists(c)), None)
+SHOTS = os.environ.get("EK_SHOTS") or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shots')
+os.makedirs(SHOTS, exist_ok=True)
+def shot(name): return os.path.join(SHOTS, name)
 REF = 'kjzkyjyvlrwisuxrytkt'
 UID = '11111111-1111-1111-1111-111111111111'
 PID = '22222222-2222-2222-2222-222222222222'
@@ -60,7 +67,7 @@ def check(name, cond):
     results.append((name, bool(cond))); print(('PASS ' if cond else 'FAIL ') + name)
 
 with sync_playwright() as pw:
-    b = pw.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox'])
+    b = pw.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
     ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2)
     ctx.add_init_script(f"localStorage.setItem('sb-{REF}-auth-token', {json.dumps(json.dumps(session))});")
     ctx.route(f"https://{REF}.supabase.co/**", handle)
@@ -69,12 +76,12 @@ with sync_playwright() as pw:
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto(f"http://127.0.0.1:{PORT}/")
     page.wait_for_selector('#btn-color-orange', state='visible', timeout=15000)
-    page.screenshot(path='/home/claude/shots/01_start.png')
+    page.screenshot(path=shot('01_start.png'))
 
     # Oranje: 1 tik open, zonder keuze opslaan -> foutmelding
     page.click('#btn-color-orange')
     page.wait_for_selector('#mood-modal:not([hidden])')
-    page.screenshot(path='/home/claude/shots/02_oranje.png')
+    page.screenshot(path=shot('02_oranje.png'))
     page.click('#mood-submit')
     check('Oranje zonder actie geweigerd', page.is_visible('#mood-action-error') and len(calls['profile_patch']) == 0)
     page.click('button[data-action="pick-mood-action"][data-index="0"]')
@@ -87,7 +94,7 @@ with sync_playwright() as pw:
     page.click('#btn-color-red')
     page.wait_for_selector('#mood-modal:not([hidden])')
     check('112-tekst bij Rood', page.locator('#mood-body a[href="tel:112"]').count() == 1 and 'geen nooddienst' in page.inner_text('#mood-body'))
-    page.screenshot(path='/home/claude/shots/03_rood.png')
+    page.screenshot(path=shot('03_rood.png'))
     page.click('#mood-submit')
     page.wait_for_selector('#mood-modal', state='hidden')
     check('Rood opgeslagen zonder actie (2 tikken)', calls['profile_patch'][-1]['current_mood'] == 'red' and calls['profile_patch'][-1]['last_self_action'] == '')
@@ -99,11 +106,11 @@ with sync_playwright() as pw:
     page.wait_for_selector('#reflect-modal:not([hidden])', timeout=5000)
     check('Groen in 1 tik', len(calls['profile_patch']) == n_before + 1 and calls['profile_patch'][-1]['current_mood'] == 'green')
     check('Terugblik verschijnt na Rood', page.is_visible('#reflect-modal'))
-    page.screenshot(path='/home/claude/shots/04_terugblik.png')
+    page.screenshot(path=shot('04_terugblik.png'))
     page.click('#reflect-form button[data-action="reflect-later"].btn-soft')
     page.wait_for_selector('#reflect-modal', state='hidden')
     check('Later: herinnering blijft staan', page.is_visible('#reflect-banner') and 'terugkijken' in page.inner_text('#reflect-banner'))
-    page.screenshot(path='/home/claude/shots/05_banner.png', full_page=False)
+    page.screenshot(path=shot('05_banner.png'), full_page=False)
     page.click('button[data-action="reflect-open"]')
     page.wait_for_selector('#reflect-modal:not([hidden])')
     page.click('button[data-action="reflect-toggle"][data-kind="signals"][data-index="0"]')
@@ -125,7 +132,7 @@ with sync_playwright() as pw:
     # Voorleesknop in uitleg
     page.click('button[data-help="stoplicht"]')
     check('Voorleesknop in uitleg', page.locator('.help-box button[data-action="read-aloud"]').count() == 1)
-    page.screenshot(path='/home/claude/shots/06_uitleg.png')
+    page.screenshot(path=shot('06_uitleg.png'))
     check('Geen JavaScript-fouten', not errors)
     if errors: print(errors)
     b.close()
