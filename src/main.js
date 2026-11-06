@@ -588,8 +588,9 @@ function renderStatusTab() {
         <span class="flex items-center gap-2"><span class="text-[10px] text-slate-400">${esc(fmtWhen(p.mood_updated_at))}</span>${helpBtn('reflectie')}</span>
       </div>
       ${signals.length ? `<div class="flex flex-wrap gap-1">${signals.map((s) => `<span class="text-[10px] font-bold ${c.badge} px-2 py-0.5 rounded-full">${esc(s)}</span>`).join('')}</div>` : ''}
-      <p class="text-xs font-bold text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-100 whitespace-pre-line">"${esc(p.last_reason)}"</p>
-      <div class="text-[11px] text-slate-600"><strong>Wat ik nu zelf doe:</strong> ${esc(p.last_self_action)}</div>`;
+      ${p.last_reason ? `<p class="text-xs font-bold text-slate-800 bg-slate-50 p-2.5 rounded-xl border border-slate-100 whitespace-pre-line">"${esc(p.last_reason)}"</p>` : ''}
+      ${p.last_self_action ? `<div class="text-[11px] text-slate-600"><strong>Wat ik nu zelf doe:</strong> ${esc(p.last_self_action)}</div>` : ''}
+      ${!p.last_reason && !p.last_self_action ? '<p class="text-[11px] text-slate-500">Geen toelichting. Dat is prima.</p>' : ''}`;
   }
 
   // Fasekiezer
@@ -599,6 +600,7 @@ function renderStatusTab() {
       ${COLORS[k].emoji} ${COLORS[k].label}${p.current_mood === k ? ' <span class="font-black">• nu</span>' : ''}
     </button>`).join('');
 
+  renderReflectBanner();
   renderGoals();
   renderPlan();
 }
@@ -684,153 +686,309 @@ function switchClientTab(tab) {
 // =============================================================================
 // STOPLICHT: VERPLICHTE REFLECTIE-CHECK
 // =============================================================================
+// =============================================================================
+// STOPLICHT – zo licht mogelijk
+// Groen: 1 tik. Oranje: 1 eigen actie kiezen, de rest mag.
+// Rood: alleen bevestigen, met 112-tekst. Na Rood volgt later een
+// vrijwillige terugblik ("reflectie achteraf").
+// =============================================================================
+const reflectKey = (pid) => userKey(`reflect:${pid}`);
+
+function moodReceivers() {
+  return state.members.filter((m) => m.can_see_mood).map((m) => firstName(m.name));
+}
+
 function openMoodModal(color) {
   const p = activeProfile();
+  if (!p || !COLORS[color]) return;
+  if (color === 'green') return saveMood({ color: 'green', signals: [], reason: '', action: '' });
   const plan = state.plans[color] || emptyPlan(color);
-  const c = COLORS[color];
   state.moodDraft = {
     color,
     chips: [...(plan.signal_chips || [])],
-    newChips: [],
     selected: new Set(),
+    action: null, // index in plan.self_actions, 'custom' of null
+    customAction: '',
+    reason: '',
+    moreOpen: false,
   };
+  const c = COLORS[color];
   const badge = $('modal-target-badge');
-  badge.textContent = p.current_mood === color ? `Status bijwerken: ${c.name}` : `Wisselen naar ${c.name}`;
+  badge.textContent = p.current_mood === color ? `Nog steeds ${c.label}` : `Naar ${c.label}`;
   badge.className = `text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${c.badge}`;
-  $('modal-reason-input').value = '';
-  $('modal-new-signal').value = '';
-  renderMoodChips();
-
-  const select = $('modal-self-action-select');
-  const actions = plan.self_actions || [];
-  select.innerHTML = `
-    ${actions.length ? '<option value="">— Kies een actie uit je plan —</option>' : ''}
-    ${actions.map((a, i) => `<option value="${i}">${esc(a)}</option>`).join('')}
-    <option value="__custom__">✏️ Zelf een actie typen…</option>`;
-  select.value = actions.length ? '' : '__custom__';
-  $('modal-self-action-custom').value = '';
-  syncMoodActionInput();
-  [1, 2, 3].forEach((n) => setStepError(n, false));
-  updateMoodStepChecks();
+  $('modal-target-title').textContent = color === 'red' ? '🔴 Te veel? Stop even.' : '🟠 Je hoofd raakt vol';
+  const submit = $('mood-submit');
+  submit.textContent = color === 'red' ? 'Ja, zet op Rood' : 'Zet op Oranje';
+  submit.className = color === 'red' ? 'flex-1 btn-red' : 'flex-1 btn-dark';
+  renderMoodBody();
   openModal('mood-modal');
 }
 
-function renderMoodChips() {
-  const d = state.moodDraft;
-  const el = $('modal-signal-chips');
-  if (!d.chips.length) {
-    el.innerHTML = `<p class="text-[11px] text-slate-500 italic">Je plan heeft nog geen signalen voor ${COLORS[d.color].label}. Typ hieronder wat je merkt en tik op <strong>+ Toevoegen</strong>.</p>`;
-    return;
-  }
-  el.innerHTML = d.chips.map((chip, i) => {
-    const on = d.selected.has(chip);
-    return `<button type="button" data-action="toggle-mood-chip" data-index="${i}" aria-pressed="${on}" class="chip ${on ? 'chip-on' : ''}">${on ? '✓' : '+'} ${esc(chip)}</button>`;
+function moodChoiceButtons(actions, d) {
+  return actions.map((a, i) => {
+    const on = d.action === i;
+    return `<button type="button" data-action="pick-mood-action" data-index="${i}" aria-pressed="${on}" class="mood-choice ${on ? 'mood-choice-on' : ''}">${on ? '✓ ' : ''}${esc(a)}</button>`;
   }).join('');
 }
 
-function addMoodSignal() {
-  const input = $('modal-new-signal');
-  const text = input.value.trim().slice(0, 80);
-  if (!text) return markInvalid(input);
+function renderMoodBody() {
   const d = state.moodDraft;
-  const existing = d.chips.find((c) => c.toLowerCase() === text.toLowerCase());
-  if (existing) {
-    d.selected.add(existing);
-  } else {
-    d.chips.push(text);
-    d.newChips.push(text);
-    d.selected.add(text);
+  if (!d) return;
+  const plan = state.plans[d.color] || emptyPlan(d.color);
+  const actions = plan.self_actions || [];
+  const receivers = moodReceivers();
+  const who = receivers.length
+    ? `<strong>${esc(receivers.join(', '))}</strong>`
+    : 'nog niemand. Voeg mensen toe in <strong>Mijn Cirkel</strong>.';
+  const el = $('mood-body');
+
+  if (d.color === 'red') {
+    el.innerHTML = `
+      <div class="rounded-2xl bg-rose-50 border-2 border-rose-300 p-4 space-y-1.5">
+        <p class="text-sm font-black text-rose-900">Tik op de rode knop. Dan ziet je netwerk dat je op Rood staat.</p>
+        <p class="text-xs text-rose-900">Wie het ziet: ${who}</p>
+      </div>
+      <div class="rounded-2xl bg-slate-900 text-white p-4 space-y-2" role="note">
+        <p class="text-sm font-black">EigenKoers is geen nooddienst.</p>
+        <p class="text-xs leading-relaxed">Ben jij of iemand anders in gevaar? Bel dan meteen 112.</p>
+        <a href="tel:112" class="inline-flex items-center gap-1.5 bg-white text-slate-900 font-black text-sm px-4 py-2 rounded-xl">📞 Bel 112</a>
+      </div>
+      ${actions.length ? `
+        <div class="space-y-2">
+          <p class="text-sm font-extrabold text-slate-800">Wat helpt jou nu? <span class="text-[11px] font-semibold text-slate-500">(mag, hoeft niet)</span></p>
+          <div class="grid gap-2">${moodChoiceButtons(actions, d)}</div>
+        </div>` : ''}`;
+    return;
   }
-  input.value = '';
-  setStepError(1, false);
-  renderMoodChips();
-  updateMoodStepChecks();
+
+  // Oranje
+  const customOn = d.action === 'custom' || !actions.length;
+  el.innerHTML = `
+    <div class="space-y-2">
+      <div class="field-row" data-help-anchor>
+        <p class="text-sm font-extrabold text-slate-800">Wat ga je nu zelf doen?</p>${helpBtn('mood-actie', 'Uitleg eigen actie')}
+      </div>
+      <p class="text-[11px] text-slate-500">${actions.length ? 'Tik er één aan.' : 'Typ kort wat je gaat doen. Je mag ook inspreken met het microfoontje op je toetsenbord.'}</p>
+      <div class="grid gap-2">
+        ${moodChoiceButtons(actions, d)}
+        ${actions.length ? `<button type="button" data-action="pick-mood-action" data-index="custom" aria-pressed="${d.action === 'custom'}" class="mood-choice ${d.action === 'custom' ? 'mood-choice-on' : ''}">${d.action === 'custom' ? '✓ ' : ''}✏️ Iets anders</button>` : ''}
+      </div>
+      <input type="text" id="mood-custom-action" maxlength="300" ${customOn ? '' : 'hidden'} value="${esc(d.customAction)}" placeholder="Bijvoorbeeld: even naar buiten" class="input">
+      <p id="mood-action-error" hidden class="text-[11px] font-bold text-rose-700">Kies wat je zelf gaat doen.</p>
+    </div>
+    <div class="border-t border-slate-200 pt-3 space-y-2">
+      <button type="button" data-action="toggle-mood-more" aria-expanded="${d.moreOpen}" class="text-xs font-bold text-indigo-700">${d.moreOpen ? '➖' : '➕'} Meer vertellen <span class="font-semibold text-slate-500">(mag)</span></button>
+      ${d.moreOpen ? `
+        ${d.chips.length ? `<div class="flex flex-wrap gap-1.5">${d.chips.map((chip, i) => {
+          const on = d.selected.has(chip);
+          return `<button type="button" data-action="toggle-mood-chip" data-index="${i}" aria-pressed="${on}" class="chip ${on ? 'chip-on' : ''}">${on ? '✓' : '+'} ${esc(chip)}</button>`;
+        }).join('')}</div>` : ''}
+        <textarea id="mood-reason" rows="2" maxlength="2000" placeholder="Wat wil je dat je netwerk weet? (mag leeg blijven)" class="input">${esc(d.reason)}</textarea>` : ''}
+    </div>
+    <p class="text-[11px] text-slate-500">Wie het ziet: ${who}</p>`;
 }
 
-function syncMoodActionInput() {
-  const custom = $('modal-self-action-select').value === '__custom__';
-  $('modal-self-action-custom').hidden = !custom;
-  $('modal-save-action-row').hidden = !custom;
-  if (custom && window.matchMedia('(pointer: fine)').matches && !$('mood-modal').hidden) $('modal-self-action-custom').focus();
-}
-
-function chosenSelfAction() {
-  const select = $('modal-self-action-select');
-  if (select.value === '__custom__') return $('modal-self-action-custom').value.trim();
-  if (select.value === '') return '';
-  const plan = state.plans[state.moodDraft.color];
-  return plan?.self_actions?.[Number(select.value)] || '';
-}
-
-function setStepError(n, show) {
-  document.querySelector(`[data-step-error="${n}"]`).hidden = !show;
-}
-
-function updateMoodStepChecks() {
-  if (!state.moodDraft) return;
-  const ok = [
-    state.moodDraft.selected.size > 0,
-    $('modal-reason-input').value.trim().length > 0,
-    chosenSelfAction().length > 0,
-  ];
-  ok.forEach((good, i) => {
-    const el = document.querySelector(`[data-step-check="${i + 1}"]`);
-    el.textContent = good ? '✅' : `${i + 1}.`;
-  });
+function chosenMoodAction() {
+  const d = state.moodDraft;
+  const plan = state.plans[d.color] || emptyPlan(d.color);
+  const actions = plan.self_actions || [];
+  if (d.action === 'custom' || (!actions.length && d.color === 'orange')) return d.customAction.trim();
+  if (typeof d.action === 'number') return actions[d.action] || '';
+  return '';
 }
 
 async function confirmMoodChange(e) {
   e.preventDefault();
   const d = state.moodDraft;
-  const p = activeProfile();
-  const reason = $('modal-reason-input').value.trim();
-  const action = chosenSelfAction();
-  const errors = [d.selected.size === 0, !reason, !action];
-  errors.forEach((bad, i) => setStepError(i + 1, bad));
-  if (errors[0]) return document.getElementById('mood-step-1').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  if (errors[1]) return markInvalid($('modal-reason-input'));
-  if (errors[2]) return markInvalid($('modal-self-action-select').value === '__custom__' ? $('modal-self-action-custom') : $('modal-self-action-select'));
-
-  const btn = e.submitter || $('mood-form').querySelector('[type=submit]');
+  if (!d) return;
+  const action = chosenMoodAction();
+  if (d.color === 'orange' && !action) {
+    $('mood-action-error').hidden = false;
+    const input = $('mood-custom-action');
+    if (input && !input.hidden) markInvalid(input);
+    return;
+  }
+  const plan = state.plans[d.color] || emptyPlan(d.color);
+  const isNewAction = d.color === 'orange' && action && !(plan.self_actions || []).includes(action);
+  const btn = e.submitter || $('mood-submit');
   await withBusy(btn, async () => {
-    const signals = d.chips.filter((c) => d.selected.has(c));
-    const { data: updated, error } = await sb.from('profiles').update({
-      current_mood: d.color,
-      last_reason: reason,
-      last_self_action: action,
-      last_signals: signals,
-      mood_updated_at: new Date().toISOString(),
-    }).eq('id', p.id).select().single();
-    if (error) return toastError(error, 'Opslaan lukte niet');
-    Object.assign(p, updated);
-
-    // Nieuwe signalen / eigen actie ook in het plan bewaren
-    const plan = state.plans[d.color];
-    const saveCustomAction = $('modal-self-action-select').value === '__custom__' && $('modal-save-action').checked
-      && !(plan.self_actions || []).includes(action);
-    if (plan?.id && (d.newChips.length || saveCustomAction)) {
-      const patch = {};
-      if (d.newChips.length) patch.signal_chips = [...(plan.signal_chips || []), ...d.newChips];
-      if (saveCustomAction) patch.self_actions = [...(plan.self_actions || []), action];
-      const { error: planErr } = await sb.from('signaling_plans').update(patch).eq('id', plan.id);
-      if (planErr) toastError(planErr, 'Signalen bewaren lukte niet');
-      else Object.assign(plan, patch);
+    const ok = await saveMood({
+      color: d.color,
+      signals: d.chips.filter((c) => d.selected.has(c)),
+      reason: d.reason.trim(),
+      action,
+    });
+    // Een zelf getypte actie bewaren we in het plan, zodat hij de volgende keer een knop is.
+    if (ok && isNewAction && plan.id) {
+      const patch = { self_actions: [...(plan.self_actions || []), action] };
+      const { error } = await sb.from('signaling_plans').update(patch).eq('id', plan.id);
+      if (!error) Object.assign(plan, patch);
     }
+  });
+}
 
-    const c = COLORS[d.color];
-    const receivers = state.members.filter((m) => m.can_see_mood).map((m) => firstName(m.name));
-    const receiverText = receivers.length ? receivers.join(', ') : 'alleen jouw logboek';
+async function saveMood({ color, signals, reason, action }) {
+  const p = activeProfile();
+  if (!p) return false;
+  const prev = p.current_mood;
+  const { data: updated, error } = await sb.from('profiles').update({
+    current_mood: color,
+    last_reason: reason,
+    last_self_action: action,
+    last_signals: signals,
+    mood_updated_at: new Date().toISOString(),
+  }).eq('id', p.id).select().single();
+  if (error) {
+    toastError(error, 'Opslaan lukte niet');
+    return false;
+  }
+  Object.assign(p, updated);
+
+  const c = COLORS[color];
+  const receivers = moodReceivers();
+  const receiverText = receivers.length ? receivers.join(', ') : 'alleen jouw logboek';
+  await logNotification({
+    kind: 'mood',
+    recipient: receiverText,
+    message: reason ? `${p.full_name} staat op ${c.upper}: "${reason}"` : `${p.full_name} staat op ${c.upper}`,
+  });
+
+  if (color === 'red') local.set(reflectKey(p.id), 'open');
+  state.moodDraft = null;
+  state.viewPhase = color;
+  if (!$('mood-modal').hidden) closeModal('mood-modal');
+  renderClient();
+  toast(`Stoplicht op ${c.upper} 🚦`,
+    receivers.length ? `Zichtbaar voor: ${receiverText}.` : 'Opgeslagen. Voeg mensen toe in Mijn Cirkel zodat zij het ook zien.',
+    '🚦', 'success');
+
+  if (prev === 'red' && color !== 'red' && local.get(reflectKey(p.id)) === 'open') openReflectModal();
+  return true;
+}
+
+// --- Terugblik na Rood (altijd vrijwillig) ---------------------------------
+function reflectionOpen(p) {
+  return !!p && p.current_mood !== 'red' && local.get(reflectKey(p.id)) === 'open';
+}
+
+function renderReflectBanner() {
+  const p = activeProfile();
+  const el = $('reflect-banner');
+  if (!el) return;
+  if (!reflectionOpen(p)) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="card border-l-4 border-rose-400 space-y-2">
+      <p class="text-xs font-extrabold text-slate-800">Je stond op Rood. Wil je kort terugkijken?</p>
+      <p class="text-[11px] text-slate-500">Dan weet je de volgende keer sneller wat helpt. Het hoeft niet.</p>
+      <div class="flex gap-2">
+        <button type="button" data-action="reflect-open" class="btn-small bg-slate-900 text-white">Nu doen</button>
+        <button type="button" data-action="reflect-dismiss" class="btn-small btn-soft">Niet nodig</button>
+      </div>
+    </div>`;
+}
+
+function openReflectModal() {
+  state.reflectDraft = { signals: new Set(), actions: new Set(), newSignal: '', newAction: '' };
+  renderReflectBody();
+  openModal('reflect-modal');
+}
+
+function renderReflectBody() {
+  const r = state.reflectDraft;
+  const plan = state.plans.red || emptyPlan('red');
+  const chips = (items, kind) => items.map((t, i) => {
+    const on = r[kind].has(t);
+    return `<button type="button" data-action="reflect-toggle" data-kind="${kind}" data-index="${i}" aria-pressed="${on}" class="chip ${on ? 'chip-on' : ''}">${on ? '✓' : '+'} ${esc(t)}</button>`;
+  }).join('');
+  $('reflect-body').innerHTML = `
+    <div class="space-y-2">
+      <p class="text-sm font-extrabold text-slate-800">Wat merkte je toen het Rood werd?</p>
+      ${(plan.signal_chips || []).length ? `<div class="flex flex-wrap gap-1.5">${chips(plan.signal_chips, 'signals')}</div>` : ''}
+      <input type="text" id="reflect-new-signal" maxlength="80" value="${esc(r.newSignal)}" placeholder="Iets anders? (mag)" class="input">
+    </div>
+    <div class="space-y-2">
+      <p class="text-sm font-extrabold text-slate-800">Wat hielp jou?</p>
+      ${(plan.self_actions || []).length ? `<div class="flex flex-wrap gap-1.5">${chips(plan.self_actions, 'actions')}</div>` : ''}
+      <input type="text" id="reflect-new-action" maxlength="300" value="${esc(r.newAction)}" placeholder="Iets anders? (mag)" class="input">
+    </div>
+    <p class="text-[11px] text-slate-500">Tip: je kunt ook inspreken met het microfoontje op je toetsenbord.</p>`;
+}
+
+async function saveReflection(e) {
+  e.preventDefault();
+  const p = activeProfile();
+  const r = state.reflectDraft;
+  const plan = state.plans.red || emptyPlan('red');
+  if (!p || !r) return;
+  const newSignal = r.newSignal.trim().slice(0, 80);
+  const newAction = r.newAction.trim().slice(0, 300);
+  const signals = [...r.signals, ...(newSignal ? [newSignal] : [])];
+  const actions = [...r.actions, ...(newAction ? [newAction] : [])];
+  if (!signals.length && !actions.length) return reflectLater();
+
+  const btn = e.submitter || $('reflect-form').querySelector('[type=submit]');
+  await withBusy(btn, async () => {
+    const patch = {};
+    if (newSignal && !(plan.signal_chips || []).some((c) => c.toLowerCase() === newSignal.toLowerCase())) {
+      patch.signal_chips = [...(plan.signal_chips || []), newSignal];
+    }
+    if (newAction && !(plan.self_actions || []).includes(newAction)) {
+      patch.self_actions = [...(plan.self_actions || []), newAction];
+    }
+    if (plan.id && Object.keys(patch).length) {
+      const { error } = await sb.from('signaling_plans').update(patch).eq('id', plan.id);
+      if (error) return toastError(error, 'Bewaren lukte niet');
+      Object.assign(plan, patch);
+    }
+    const parts = [];
+    if (signals.length) parts.push(`merkte: ${signals.join(', ')}`);
+    if (actions.length) parts.push(`wat hielp: ${actions.join(', ')}`);
     await logNotification({
       kind: 'mood',
-      recipient: receiverText,
-      message: `${p.full_name} staat op ${c.upper}: "${reason}"`,
+      recipient: moodReceivers().join(', ') || 'alleen jouw logboek',
+      message: `Terugblik op Rood van ${p.full_name}: ${parts.join('. ')}`,
     });
-
-    state.viewPhase = d.color;
-    closeModal('mood-modal');
+    local.set(reflectKey(p.id), 'done');
+    state.reflectDraft = null;
+    closeModal('reflect-modal');
     renderClient();
-    toast(`Stoplicht op ${c.upper} 🚦`, receivers.length ? `Zichtbaar voor: ${receiverText}.` : 'Opgeslagen. Voeg mensen toe in Mijn Cirkel zodat zij het ook zien.', '🚦', 'success');
+    toast('Terugblik bewaard', 'Het staat in je plan voor Rood.', '💪', 'success');
   });
+}
+
+function reflectLater() {
+  state.reflectDraft = null;
+  closeModal('reflect-modal');
+  renderReflectBanner();
+}
+
+// --- Voorlezen ----------------------------------------------------------------
+function readAloud(el) {
+  const synth = window.speechSynthesis;
+  if (!synth || typeof SpeechSynthesisUtterance === 'undefined') {
+    return toast('Voorlezen lukt niet', 'Dit apparaat ondersteunt voorlezen niet.', '🔇');
+  }
+  if (synth.speaking) {
+    synth.cancel();
+    return;
+  }
+  const root = (el.dataset.read && $(el.dataset.read)) || el.closest('.help-box');
+  if (!root) return;
+  const clone = root.cloneNode(true);
+  clone.querySelectorAll('button[data-action="read-aloud"], button[data-action="close-modal"], input, textarea, select, [hidden]').forEach((n) => n.remove());
+  const text = clone.innerText.replace(/[✓✕➕➖🔊💡•]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!text) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'nl-NL';
+  u.rate = 0.9;
+  const voice = synth.getVoices().find((v) => v.lang && v.lang.toLowerCase().startsWith('nl'));
+  if (voice) u.voice = voice;
+  synth.speak(u);
 }
 
 async function logNotification({ kind, recipient, message, member_id = null }) {
@@ -1957,8 +2115,9 @@ function renderNetwork() {
         <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
           <div class="text-[10px] font-bold text-slate-400">Toelichting (${esc(fmtWhen(v.mood.updated_at))}):</div>
           ${signals.length ? `<div class="flex flex-wrap gap-1">${signals.map((s) => `<span class="text-[10px] font-bold ${c.badge} px-2 py-0.5 rounded-full">${esc(s)}</span>`).join('')}</div>` : ''}
-          <p class="text-xs font-bold text-slate-800 break-words whitespace-pre-line">"${esc(v.mood.reason)}"</p>
-          <p class="text-[11px] text-indigo-700 font-semibold pt-1 break-words">💪 Eigen actie: ${esc(v.mood.self_action)}</p>
+          ${v.mood.reason ? `<p class="text-xs font-bold text-slate-800 break-words whitespace-pre-line">"${esc(v.mood.reason)}"</p>` : ''}
+          ${v.mood.self_action ? `<p class="text-[11px] text-indigo-700 font-semibold pt-1 break-words">💪 Eigen actie: ${esc(v.mood.self_action)}</p>` : ''}
+          ${!v.mood.reason && !v.mood.self_action ? '<p class="text-[11px] text-slate-500">Geen toelichting gegeven.</p>' : ''}
         </div>
         <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200 space-y-1">
           <div class="text-xs font-extrabold text-emerald-950">🤝 Wat helpt nu van jou (${esc(firstName(viewer.name))})?</div>
@@ -2275,7 +2434,7 @@ function renderAdminKpis() {
       `${nf.format(d.network_tasks)} netwerk-opdrachten · ${nf.format(d.recoveries)}× herstel naar groen`),
     kpiCard('⚖️', 'Pad B gekozen', pctB === null ? '–' : `${pctB}%`,
       choices ? `${nf.format(d.pad_b)} van ${nf.format(choices)} keuzes op de Keuze-Tafel` : 'Nog geen keuzes in deze periode'),
-    kpiCard('💶', 'Bespaard (schatting)', euroNl(d.saved_euros), 'WMO-kosten en schadelast samen'),
+    kpiCard('💶', 'Rekenvoorbeeld', euroNl(d.saved_euros), 'Aanname, niet gemeten: €45 per herstel, €55 per Pad B, €65 per uur netwerkhulp'),
   ].join('');
 }
 
@@ -2399,7 +2558,7 @@ async function exportAdminLog(button) {
       if (!data || data.length < 1000) break;
     }
     if (!rows.length) return toast('Niets te downloaden', 'Er zijn geen gebeurtenissen voor deze periode of dit filter.', 'ℹ️', 'warn');
-    const header = ['Datum', 'Tijd', 'Cliëntcode (anoniem)', 'Gebeurteniscode', 'Gebeurtenis', 'Toelichting', 'Informele zorg (minuten)', 'Bespaarde kosten (euro)'];
+    const header = ['Datum', 'Tijd', 'Cliëntcode (anoniem)', 'Gebeurteniscode', 'Gebeurtenis', 'Toelichting', 'Informele zorg (minuten)', 'Rekenvoorbeeld besparing (euro, aanname)'];
     const body = rows.map((l) => {
       const d = new Date(l.created_at);
       return [
@@ -2440,7 +2599,7 @@ async function exportAdminSummary(button) {
       ['Gebeurtenissen in periode', d.events],
       ['Unieke cliënten in periode', d.unique_clients],
       ['Uren geactiveerde informele zorg', hoursNl(d.informal_minutes)],
-      ['Bespaarde WMO-kosten en schadelast (euro)', d.saved_euros],
+      ['Rekenvoorbeeld besparing (euro) – aanname, geen gemeten besparing', d.saved_euros],
       ['Keuze-Tafel: Pad A (impuls)', d.pad_a],
       ['Keuze-Tafel: Pad B (slimme stap)', d.pad_b],
       ['Percentage Pad B', choices ? `${Math.round((d.pad_b / choices) * 100)}%` : '–'],
@@ -2544,7 +2703,7 @@ function toggleHelp(btn) {
   box.className = 'help-box' + (btn.hasAttribute('data-help-dark') ? ' help-box-dark' : '');
   box.dataset.for = key;
   box.setAttribute('role', 'note');
-  box.innerHTML = HELP[key] || 'Hier komt binnenkort uitleg.';
+  box.innerHTML = `${HELP[key] || 'Hier komt binnenkort uitleg.'}<div class="mt-1.5"><button type="button" data-action="read-aloud" class="read-btn-inline">🔊 Lees voor</button></div>`;
   anchor.insertAdjacentElement('afterend', box);
   btn.setAttribute('aria-expanded', 'true');
 }
@@ -2580,11 +2739,39 @@ const ACTIONS = {
     const chip = d.chips[Number(el.dataset.index)];
     if (d.selected.has(chip)) d.selected.delete(chip);
     else d.selected.add(chip);
-    setStepError(1, false);
-    renderMoodChips();
-    updateMoodStepChecks();
+    renderMoodBody();
   },
-  'add-mood-signal': () => addMoodSignal(),
+  'pick-mood-action': (el) => {
+    const d = state.moodDraft;
+    const idx = el.dataset.index === 'custom' ? 'custom' : Number(el.dataset.index);
+    // Bij Rood is kiezen vrijwillig: nog een keer tikken zet het weer uit.
+    d.action = d.color === 'red' && d.action === idx ? null : idx;
+    renderMoodBody();
+    if (idx === 'custom') $('mood-custom-action')?.focus();
+  },
+  'toggle-mood-more': () => {
+    state.moodDraft.moreOpen = !state.moodDraft.moreOpen;
+    renderMoodBody();
+    if (state.moodDraft.moreOpen) $('mood-reason')?.focus();
+  },
+  'reflect-open': () => openReflectModal(),
+  'reflect-later': () => reflectLater(),
+  'reflect-dismiss': () => {
+    const p = activeProfile();
+    if (p) local.set(reflectKey(p.id), 'done');
+    renderReflectBanner();
+  },
+  'reflect-toggle': (el) => {
+    const r = state.reflectDraft;
+    const plan = state.plans.red || emptyPlan('red');
+    const list = el.dataset.kind === 'signals' ? plan.signal_chips || [] : plan.self_actions || [];
+    const item = list[Number(el.dataset.index)];
+    const set = r[el.dataset.kind];
+    if (set.has(item)) set.delete(item);
+    else set.add(item);
+    renderReflectBody();
+  },
+  'read-aloud': (el) => readAloud(el),
   'view-phase': (el) => {
     state.viewPhase = el.dataset.color;
     renderStatusTab();
@@ -2694,11 +2881,6 @@ const CHANGES = {
     state.sigEditing = null;
     renderSigEditor();
   },
-  'mood-action-select': () => {
-    syncMoodActionInput();
-    setStepError(3, false);
-    updateMoodStepChecks();
-  },
   'admin-period': () => setAdminPeriod($('admin-from').value, $('admin-to').value),
   'admin-filter': (el) => {
     state.admin.type = el.value;
@@ -2713,6 +2895,7 @@ const SUBMITS = {
   'form-edit-profile': saveEditedProfile,
   'form-new-profile': createNewBlankProfile,
   'mood-form': confirmMoodChange,
+  'reflect-form': saveReflection,
   'goal-form': saveGoal,
   'sig-form': saveSignalingPlan,
   'custom-scenario-box': drawCustomScenario,
@@ -2781,10 +2964,13 @@ function wireEvents() {
       state.sigDrafts[$('sig-edit-color').value].signals_text = e.target.value;
       $('sig-dirty-note').hidden = !sigDirty();
     }
-    if (e.target.id === 'modal-reason-input' || e.target.id === 'modal-self-action-custom') {
-      setStepError(e.target.id === 'modal-reason-input' ? 2 : 3, false);
-      updateMoodStepChecks();
+    if (state.moodDraft && e.target.id === 'mood-custom-action') {
+      state.moodDraft.customAction = e.target.value;
+      $('mood-action-error').hidden = true;
     }
+    if (state.moodDraft && e.target.id === 'mood-reason') state.moodDraft.reason = e.target.value;
+    if (state.reflectDraft && e.target.id === 'reflect-new-signal') state.reflectDraft.newSignal = e.target.value;
+    if (state.reflectDraft && e.target.id === 'reflect-new-action') state.reflectDraft.newAction = e.target.value;
   });
 
   document.addEventListener('keydown', (e) => {
@@ -2804,9 +2990,6 @@ function wireEvents() {
     } else if (t.matches?.('[data-sig-edit-input]')) {
       e.preventDefault();
       sigSaveItem(t.dataset.sigEditInput, Number(t.dataset.index));
-    } else if (t.id === 'modal-new-signal') {
-      e.preventDefault();
-      addMoodSignal();
     }
   });
 

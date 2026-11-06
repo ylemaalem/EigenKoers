@@ -17,6 +17,21 @@
 }
 
 @layer components {
+  .mood-choice {
+    @apply w-full text-left text-sm font-bold text-slate-800 bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 min-h-[48px] transition-all;
+  }
+  .mood-choice-on {
+    @apply border-indigo-600 bg-indigo-50 text-indigo-900;
+  }
+  .btn-red {
+    @apply bg-rose-600 hover:bg-rose-700 text-white text-sm font-black py-3 rounded-xl transition-all disabled:opacity-60;
+  }
+  .read-btn {
+    @apply w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-base flex items-center justify-center;
+  }
+  .read-btn-inline {
+    @apply text-[11px] font-bold text-indigo-700 bg-white/70 border border-indigo-200 rounded-lg px-2 py-1;
+  }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

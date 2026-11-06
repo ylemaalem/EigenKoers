@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="EigenKoers">
   <meta name="description" content="EigenKoers: stoplicht, signaleringsplan, keuze-tafel en opdrachten voor cliënt en netwerk.">
   <title>EigenKoers</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
@@ -251,6 +253,9 @@
                 </button>
               </div>
             </div>
+
+            <!-- Open terugblik na Rood -->
+            <div id="reflect-banner" hidden></div>
 
             <!-- Actuele status-update -->
             <div id="current-reflection-box" class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-slate-300 space-y-2"></div>
@@ -779,59 +784,48 @@
     </div>
 
     <!-- ============================================================= -->
-    <!-- MODAL: VERPLICHTE REFLECTIE-CHECK                             -->
+    <!-- MODAL: STOPLICHT (Oranje = 1 keuze, Rood = alleen bevestigen) -->
     <!-- ============================================================= -->
     <div id="mood-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-target-title">
       <form id="mood-form" class="modal-panel" novalidate>
         <div class="flex justify-between items-start border-b border-slate-200 pb-3">
           <div>
-            <span id="modal-target-badge" class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded">Stoplicht wijzigen</span>
-            <h3 id="modal-target-title" class="text-base font-black text-slate-900 mt-1">Korte reflectie-check</h3>
-            <p class="text-[11px] text-slate-500 mt-0.5">Vul alle 3 de stappen in. Zo weet je netwerk wat er speelt.</p>
+            <span id="modal-target-badge" class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded">Stoplicht</span>
+            <h3 id="modal-target-title" class="text-lg font-black text-slate-900 mt-1">Stoplicht</h3>
           </div>
-          <button type="button" data-action="close-modal" class="modal-close" aria-label="Sluiten">✕</button>
-        </div>
-
-        <div class="space-y-4 text-xs">
-          <div id="mood-step-1">
-            <div class="field-row mb-1.5" data-help-anchor>
-              <label class="font-extrabold text-slate-700"><span data-step-check="1">1.</span> Wat merk je bij jezelf? (Tik aan)</label>
-              <button type="button" class="help-btn" data-help="mood-signalen" aria-label="Uitleg signalen aantikken" aria-expanded="false">?</button>
-            </div>
-            <div id="modal-signal-chips" class="flex flex-wrap gap-1.5"></div>
-            <div class="flex gap-2 mt-2">
-              <input type="text" id="modal-new-signal" maxlength="80" placeholder="Ander signaal? Typ het hier…" class="input">
-              <button type="button" data-action="add-mood-signal" class="btn-small bg-indigo-100 text-indigo-800 shrink-0">+ Toevoegen</button>
-            </div>
-            <p data-step-error="1" hidden class="text-[11px] font-bold text-rose-700 mt-1">Tik minimaal één signaal aan.</p>
-          </div>
-
-          <div id="mood-step-2">
-            <div class="field-row mb-1" data-help-anchor>
-              <label for="modal-reason-input" class="font-extrabold text-slate-700"><span data-step-check="2">2.</span> Wat wil je dat je netwerk/begeleider weet?</label>
-              <button type="button" class="help-btn" data-help="mood-context" aria-label="Uitleg context" aria-expanded="false">?</button>
-            </div>
-            <textarea id="modal-reason-input" rows="3" maxlength="2000" placeholder="Typ hier kort wat er speelt vandaag…" class="input font-medium"></textarea>
-            <p data-step-error="2" hidden class="text-[11px] font-bold text-rose-700 mt-1">Schrijf kort wat er speelt (één zin is genoeg).</p>
-          </div>
-
-          <div id="mood-step-3">
-            <div class="field-row mb-1" data-help-anchor>
-              <label for="modal-self-action-select" class="font-extrabold text-slate-700"><span data-step-check="3">3.</span> Welke actie ga je nu ZELF doen?</label>
-              <button type="button" class="help-btn" data-help="mood-actie" aria-label="Uitleg eigen actie" aria-expanded="false">?</button>
-            </div>
-            <select id="modal-self-action-select" data-change="mood-action-select" class="input bg-indigo-50 border-indigo-200 font-bold text-indigo-950"></select>
-            <input type="text" id="modal-self-action-custom" hidden maxlength="300" placeholder="Typ je eigen herstelactie…" class="input mt-2">
-            <label id="modal-save-action-row" hidden class="flex items-center gap-2 mt-2 text-[11px] text-slate-600">
-              <input type="checkbox" id="modal-save-action" checked class="w-4 h-4 accent-indigo-600"> Deze actie ook bewaren in mijn signaleringsplan
-            </label>
-            <p data-step-error="3" hidden class="text-[11px] font-bold text-rose-700 mt-1">Kies of typ wat je nu zelf gaat doen.</p>
+          <div class="flex items-center gap-1.5">
+            <button type="button" data-action="read-aloud" data-read="mood-form" class="read-btn" aria-label="Lees voor">🔊</button>
+            <button type="button" data-action="close-modal" class="modal-close" aria-label="Sluiten">✕</button>
           </div>
         </div>
+        <div id="mood-body" class="space-y-4 text-xs pt-3"></div>
+        <div class="flex gap-2 pt-3">
+          <button type="button" data-action="close-modal" class="flex-1 btn-soft">Terug</button>
+          <button type="submit" id="mood-submit" class="flex-1 btn-dark">Opslaan</button>
+        </div>
+      </form>
+    </div>
 
-        <div class="flex gap-2 pt-2">
-          <button type="button" data-action="close-modal" class="flex-1 btn-soft">Annuleren</button>
-          <button type="submit" class="flex-1 btn-dark">Opslaan &amp; Melding Sturen</button>
+    <!-- ============================================================= -->
+    <!-- MODAL: TERUGBLIK NA ROOD (altijd vrijwillig)                  -->
+    <!-- ============================================================= -->
+    <div id="reflect-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="reflect-title">
+      <form id="reflect-form" class="modal-panel" novalidate>
+        <div class="flex justify-between items-start border-b border-slate-200 pb-3">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-rose-100 text-rose-800">Terugblik op Rood</span>
+            <h3 id="reflect-title" class="text-lg font-black text-slate-900 mt-1">Fijn dat het weer beter gaat</h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">Dit mag, het hoeft niet. Wat je kiest, komt in je plan voor Rood.</p>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button type="button" data-action="read-aloud" data-read="reflect-form" class="read-btn" aria-label="Lees voor">🔊</button>
+            <button type="button" data-action="reflect-later" class="modal-close" aria-label="Later">✕</button>
+          </div>
+        </div>
+        <div id="reflect-body" class="space-y-4 text-xs pt-3"></div>
+        <div class="flex gap-2 pt-3">
+          <button type="button" data-action="reflect-later" class="flex-1 btn-soft">Later</button>
+          <button type="submit" class="flex-1 btn-dark">Bewaren</button>
         </div>
       </form>
     </div>

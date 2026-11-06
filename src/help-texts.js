@@ -28,7 +28,7 @@ export const HELP = {
 
   // --- Stoplicht ---
   stoplicht:
-    '💡 Tik op de kleur die past bij hoe jij je nu voelt.<br>• <strong>Groen:</strong> het gaat goed en je hebt overzicht.<br>• <strong>Oranje:</strong> je hoofd raakt vol of je voelt spanning.<br>• <strong>Rood:</strong> het is te veel, je hebt direct rust of hulp nodig.<br>Daarna vul je kort in wat er aan de hand is. Zo kan je omgeving rekening met je houden.',
+    '💡 Tik op de kleur die past bij hoe jij je nu voelt.<br>• <strong>Groen:</strong> het gaat goed en je hebt overzicht.<br>• <strong>Oranje:</strong> je hoofd raakt vol of je voelt spanning.<br>• <strong>Rood:</strong> het is te veel, je hebt direct rust of hulp nodig.<br>Bij <strong>Groen</strong> is één tik genoeg. Bij <strong>Oranje</strong> kies je wat je zelf gaat doen. Bij <strong>Rood</strong> bevestig je alleen. Later mag je terugkijken op wat er gebeurde.',
   reflectie:
     'Dit is wat je de laatste keer hebt ingevuld bij je stoplicht. De mensen die jouw stoplicht mogen zien, zien deze tekst ook.',
   'phase-tabs':
@@ -49,7 +49,7 @@ export const HELP = {
   'mood-context':
     'Schrijf in een paar woorden wat er speelt. Bijvoorbeeld: <em>Ik heb slecht geslapen en er ligt een brief van de gemeente</em>. Dit lezen de mensen die je stoplicht mogen zien.',
   'mood-actie':
-    'Kies wat jij zelf nu gaat doen om je beter te voelen. De keuzes komen uit je signaleringsplan. Kies <strong>✏️ Zelf een actie typen</strong> als je iets anders wilt doen.',
+    'Tik op wat jij zelf nu gaat doen om je beter te voelen. De knoppen komen uit je signaleringsplan. Kies <strong>✏️ Iets anders</strong> als je iets anders wilt doen. Dat wordt dan ook een knop voor de volgende keer.',
 
   // --- Leerdoel-modal ---
   'goal-kleur':
