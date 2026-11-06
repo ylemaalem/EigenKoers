@@ -7,13 +7,19 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npm run test:db",
+    "test:db": "node tests/db/schema.test.mjs && node tests/db/admin.test.mjs && node tests/db/pakket-a.test.mjs",
+    "test:ui-a": "npm run build && python tests/test_pakket_a.py dist",
+    "test:e2e": "node tests/e2e/api.test.mjs && node tests/e2e/ui.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.15",
     "autoprefixer": "10.6.2",
+    "playwright-core": "1.65.0",
     "postcss": "8.5.32",
     "tailwindcss": "3.4.19",
     "vite": "6.4.5"
