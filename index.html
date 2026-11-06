@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="description" content="EigenKoers: stoplicht, signaleringsplan, keuze-tafel en opdrachten voor cliënt en netwerk.">
+  <title>EigenKoers</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="module" src="./src/main.js"></script>
+</head>
+<body class="flex justify-center items-center min-h-[100dvh] p-0 sm:p-4">
+
+  <!-- Zwevende melding -->
+  <div id="push-toast" role="status" aria-live="polite" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] w-11/12 max-w-md bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-indigo-500 flex items-start gap-3 transition-all duration-300 -translate-y-40 opacity-0 pointer-events-none">
+    <div id="toast-icon" class="text-xl p-1.5 bg-indigo-500/20 rounded-xl shrink-0">🔔</div>
+    <div class="flex-1 min-w-0">
+      <div class="flex justify-between items-center gap-2">
+        <span id="toast-title" class="text-xs font-extrabold text-indigo-300 uppercase tracking-wider">Melding</span>
+        <span class="text-[10px] text-slate-400 shrink-0">Zojuist</span>
+      </div>
+      <p id="toast-body" class="text-xs text-slate-100 mt-1 leading-relaxed break-words">Bericht</p>
+    </div>
+  </div>
+
+  <!-- App-container (telefoonframe op grote schermen) -->
+  <div id="app-frame" class="w-full max-w-md h-[100dvh] sm:h-[min(890px,calc(100dvh-2rem))] bg-slate-100 sm:rounded-[42px] shadow-2xl flex flex-col overflow-hidden relative border-0 sm:border-[8px] sm:border-slate-800">
+
+    <!-- ============================================================= -->
+    <!-- LADEN                                                         -->
+    <!-- ============================================================= -->
+    <div id="screen-loading" class="flex-1 flex flex-col items-center justify-center gap-4 bg-slate-900 text-white">
+      <div class="text-4xl">🚦</div>
+      <div class="text-lg font-black">EigenKoers</div>
+      <div class="spinner"></div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- INLOGGEN / REGISTREREN                                        -->
+    <!-- ============================================================= -->
+    <div id="screen-auth" hidden class="flex-1 overflow-y-auto no-scrollbar bg-slate-100">
+      <div class="bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-900 text-white px-6 pt-10 pb-8 rounded-b-[32px] shadow-md">
+        <span class="text-[10px] font-bold uppercase tracking-wider bg-white/15 px-2.5 py-0.5 rounded-full">Welkom bij</span>
+        <h1 class="text-3xl font-black mt-2">🚦 EigenKoers</h1>
+        <p class="text-xs text-indigo-100 mt-2 leading-relaxed">Jij houdt het stuur. Laat zien hoe het met je gaat, maak slimme keuzes en vraag je netwerk om hulp – op jouw manier.</p>
+      </div>
+
+      <div class="p-4 space-y-4">
+        <!-- Uitnodiging-banner -->
+        <div id="auth-invite-banner" hidden class="bg-emerald-50 border-2 border-emerald-300 p-4 rounded-2xl text-xs text-emerald-950 leading-relaxed"></div>
+
+        <div class="card space-y-4">
+          <div class="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
+            <button type="button" data-action="auth-tab" data-tab="login" id="auth-tab-login" class="py-2 rounded-lg text-xs font-bold bg-white shadow text-slate-900">Inloggen</button>
+            <button type="button" data-action="auth-tab" data-tab="register" id="auth-tab-register" class="py-2 rounded-lg text-xs font-bold text-slate-500">Account maken</button>
+          </div>
+
+          <form id="form-login" class="space-y-3" novalidate>
+            <div>
+              <div class="field-row" data-help-anchor>
+                <label for="login-email" class="label">E-mailadres</label>
+                <button type="button" class="help-btn" data-help="auth-email" aria-label="Uitleg e-mailadres" aria-expanded="false">?</button>
+              </div>
+              <input id="login-email" type="email" autocomplete="email" inputmode="email" class="input mt-1" placeholder="naam@voorbeeld.nl" required>
+            </div>
+            <div>
+              <div class="field-row" data-help-anchor>
+                <label for="login-password" class="label">Wachtwoord</label>
+                <button type="button" class="help-btn" data-help="auth-password-login" aria-label="Uitleg wachtwoord" aria-expanded="false">?</button>
+              </div>
+              <input id="login-password" type="password" autocomplete="current-password" class="input mt-1" placeholder="Je wachtwoord" required>
+            </div>
+            <p id="login-error" hidden class="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl"></p>
+            <button type="submit" class="btn-primary w-full">Inloggen</button>
+            <button type="button" data-action="forgot-password" class="w-full text-[11px] font-bold text-indigo-700">Wachtwoord vergeten?</button>
+          </form>
+
+          <form id="form-register" hidden class="space-y-3" novalidate>
+            <div>
+              <div class="field-row" data-help-anchor>
+                <label for="reg-name" class="label">Je naam</label>
+                <button type="button" class="help-btn" data-help="auth-name" aria-label="Uitleg naam" aria-expanded="false">?</button>
+              </div>
+              <input id="reg-name" type="text" autocomplete="name" maxlength="120" class="input mt-1" placeholder="Voor- en achternaam" required>
+            </div>
+            <div>
+              <div class="field-row" data-help-anchor>
+                <label for="reg-email" class="label">E-mailadres</label>
+                <button type="button" class="help-btn" data-help="auth-email" aria-label="Uitleg e-mailadres" aria-expanded="false">?</button>
+              </div>
+              <input id="reg-email" type="email" autocomplete="email" inputmode="email" class="input mt-1" placeholder="naam@voorbeeld.nl" required>
+            </div>
+            <div>
+              <div class="field-row" data-help-anchor>
+                <label for="reg-password" class="label">Kies een wachtwoord (minimaal 8 tekens)</label>
+                <button type="button" class="help-btn" data-help="auth-password-new" aria-label="Uitleg wachtwoord" aria-expanded="false">?</button>
+              </div>
+              <input id="reg-password" type="password" autocomplete="new-password" minlength="8" class="input mt-1" placeholder="Minimaal 8 tekens" required>
+            </div>
+            <p id="register-error" hidden class="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl"></p>
+            <button type="submit" class="btn-primary w-full">✨ Account maken</button>
+            <p class="text-[10px] text-slate-500 leading-relaxed text-center">Een nieuw account start altijd helemaal leeg. Je kunt daarna zelf een voorbeeldprofiel laden om rond te kijken.</p>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- ONBOARDING (ingelogd, nog geen profiel en geen netwerk)        -->
+    <!-- ============================================================= -->
+    <div id="screen-onboarding" hidden class="flex-1 overflow-y-auto no-scrollbar bg-slate-100">
+      <div class="bg-indigo-700 text-white px-5 pt-8 pb-6 rounded-b-[28px] shadow-md">
+        <div class="flex justify-between items-start gap-2">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider bg-black/20 px-2 py-0.5 rounded-full">EigenKoers</span>
+            <h1 class="text-xl font-black mt-2">Welkom, <span id="onboarding-name">daar</span>! 👋</h1>
+          </div>
+          <button type="button" data-action="logout" class="text-[11px] bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-xl font-bold shrink-0">Uitloggen</button>
+        </div>
+        <p class="text-xs text-indigo-100 mt-2 leading-relaxed">Je account is klaar en nog helemaal leeg. Kies hieronder hoe je wilt beginnen.</p>
+      </div>
+
+      <div class="p-4 space-y-4">
+        <div class="card space-y-3">
+          <div class="field-row" data-help-anchor>
+            <h2 class="section-title">✨ 1. Start mijn eigen profiel (blanco)</h2>
+            <button type="button" class="help-btn" data-help="onboarding-blank" aria-label="Uitleg blanco profiel" aria-expanded="false">?</button>
+          </div>
+          <form id="form-onboarding-profile" class="space-y-2.5" novalidate>
+            <div data-profile-fields="onb"></div>
+            <button type="submit" class="btn-primary w-full">✨ Start mijn blanco profiel</button>
+          </form>
+        </div>
+
+        <div class="card space-y-3">
+          <div class="field-row" data-help-anchor>
+            <h2 class="section-title">🧪 2. Eerst rondkijken?</h2>
+            <button type="button" class="help-btn" data-help="account-demo" aria-label="Uitleg demo-profiel" aria-expanded="false">?</button>
+          </div>
+          <p class="text-xs text-slate-600 leading-relaxed">Laad het voorbeeldprofiel van <strong>Daan Vermeulen</strong>. Zo zie je hoe alles werkt met ingevulde gegevens. Je eigen profiel blijft leeg.</p>
+          <button type="button" data-action="load-demo" class="btn-soft w-full border border-slate-300">🧪 Voorbeeld/Demo-profiel (Daan Vermeulen) laden</button>
+        </div>
+
+        <div class="card space-y-3">
+          <div class="field-row" data-help-anchor>
+            <h2 class="section-title">👥 3. Ik ben uitgenodigd als netwerklid</h2>
+            <button type="button" class="help-btn" data-help="net-code" aria-label="Uitleg uitnodigingscode" aria-expanded="false">?</button>
+          </div>
+          <form data-form="invite-code" class="flex gap-2" novalidate>
+            <input type="text" name="code" autocomplete="off" autocapitalize="characters" maxlength="12" class="input uppercase tracking-widest" placeholder="Bijv. K7P2-9QXM" aria-label="Uitnodigingscode">
+            <button type="submit" class="btn-primary shrink-0">Koppelen</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- DE APP                                                        -->
+    <!-- ============================================================= -->
+    <div id="screen-app" hidden class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- BOVENBALK: DASHBOARD-WISSELAAR -->
+      <div class="bg-slate-900 text-white px-4 pt-3 pb-2.5 shrink-0 border-b border-slate-800">
+        <div class="flex items-center justify-between gap-2 bg-slate-800 p-1 rounded-xl">
+          <button type="button" data-action="switch-mode" data-mode="client" id="mode-btn-client" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow transition-all text-center">
+            👤 1. Mijn Dashboard
+          </button>
+          <button type="button" data-action="switch-mode" data-mode="network" id="mode-btn-network" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition-all text-center relative">
+            👥 2. Netwerk Weergave
+            <span id="network-unread-badge" hidden class="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-rose-500 text-white rounded-full text-[9px] flex items-center justify-center font-extrabold">!</span>
+          </button>
+        </div>
+
+        <!-- Kiezer welk netwerk (alleen in netwerk-modus) -->
+        <div id="network-viewer-bar" hidden class="mt-2 pt-2 border-t border-slate-700 flex items-center justify-between gap-2">
+          <label for="active-network-member-select" class="text-[11px] text-slate-300 font-semibold shrink-0">Bekijk netwerk van:</label>
+          <select id="active-network-member-select" data-change="network-select" class="flex-1 min-w-0 bg-slate-800 text-white text-xs font-bold py-1.5 px-2.5 rounded-lg border border-slate-600"></select>
+          <button type="button" class="help-btn help-btn-light" data-help="net-select" data-help-dark aria-label="Uitleg netwerk kiezen" aria-expanded="false">?</button>
+        </div>
+      </div>
+
+      <!-- =========================================================== -->
+      <!-- DASHBOARD 1: CLIËNT                                         -->
+      <!-- =========================================================== -->
+      <div id="dashboard-client" class="flex-1 flex flex-col overflow-hidden">
+
+        <header id="client-header" class="bg-slate-600 text-white pt-4 pb-4 px-5 rounded-b-[24px] shadow-md transition-colors duration-500 shrink-0">
+          <div class="flex justify-between items-start gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-[10px] font-bold uppercase tracking-wider bg-black/20 px-2 py-0.5 rounded-full">EigenKoers</span>
+                <span id="header-supervisor" class="text-[11px] text-white/90 font-medium truncate"></span>
+                <span id="header-demo-badge" hidden class="text-[9px] font-extrabold uppercase bg-white text-slate-900 px-1.5 py-0.5 rounded">Demo</span>
+              </div>
+              <h1 id="client-title-name" class="text-xl font-black mt-1 truncate">-</h1>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" data-action="open-notifications" aria-label="Meldingen" class="relative text-sm bg-white/20 hover:bg-white/30 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm">
+                🔔
+                <span id="bell-badge" hidden class="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-rose-500 text-white rounded-full text-[9px] flex items-center justify-center font-extrabold">0</span>
+              </button>
+              <button type="button" data-action="open-account" class="text-xs bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold flex items-center gap-1.5 shadow-sm">
+                <span>👤</span> Account / Nieuw
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-3 flex items-center justify-between bg-black/15 px-3 py-2 rounded-xl text-xs gap-2">
+            <span class="flex items-center gap-1.5 font-semibold min-w-0">
+              <span id="header-status-dot" class="w-2.5 h-2.5 rounded-full bg-white/60 shrink-0"></span>
+              <span class="truncate">Stoplicht: <strong id="header-status-text">Nog niet ingevuld</strong></span>
+            </span>
+            <span id="header-budget-text" class="text-white/95 font-bold shrink-0">Weekgeld: –</span>
+          </div>
+        </header>
+
+        <main id="client-main" class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
+
+          <!-- ========================================================= -->
+          <!-- TAB 1: STOPLICHT, LEERDOELEN, SIGNALERINGSPLAN            -->
+          <!-- ========================================================= -->
+          <section id="client-tab-status" class="space-y-4">
+
+            <div class="card space-y-2.5">
+              <div class="field-row" data-help-anchor>
+                <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-600">Hoe zit je vandaag in je vel?</h2>
+                <button type="button" class="help-btn w-6 h-6 text-xs" data-help="stoplicht" aria-label="Uitleg stoplicht" aria-expanded="false">?</button>
+              </div>
+              <div class="grid grid-cols-3 gap-2.5 pt-1">
+                <button type="button" data-action="open-mood" data-color="green" id="btn-color-green" class="p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center transition-all flex flex-col items-center">
+                  <span class="text-2xl">🟢</span>
+                  <span class="text-xs font-extrabold text-slate-800 mt-1">Groen</span>
+                  <span class="text-[10px] text-slate-500 font-medium mt-0.5">Overzicht &amp; Rust</span>
+                </button>
+                <button type="button" data-action="open-mood" data-color="orange" id="btn-color-orange" class="p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center transition-all flex flex-col items-center">
+                  <span class="text-2xl">🟠</span>
+                  <span class="text-xs font-extrabold text-slate-800 mt-1">Oranje</span>
+                  <span class="text-[10px] text-slate-500 font-medium mt-0.5">Hoofd raakt vol</span>
+                </button>
+                <button type="button" data-action="open-mood" data-color="red" id="btn-color-red" class="p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-center transition-all flex flex-col items-center">
+                  <span class="text-2xl">🔴</span>
+                  <span class="text-xs font-extrabold text-slate-800 mt-1">Rood</span>
+                  <span class="text-[10px] text-slate-500 font-medium mt-0.5">Te veel / Stop</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Actuele status-update -->
+            <div id="current-reflection-box" class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-slate-300 space-y-2"></div>
+
+            <!-- Fasekiezer voor leerdoelen en plan -->
+            <div class="card !p-3 space-y-2">
+              <div class="field-row" data-help-anchor>
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Bekijk doelen &amp; plan voor fase:</span>
+                <button type="button" class="help-btn" data-help="phase-tabs" aria-label="Uitleg fasekiezer" aria-expanded="false">?</button>
+              </div>
+              <div id="phase-tabs" class="flex gap-1.5"></div>
+            </div>
+
+            <!-- LEERDOELEN -->
+            <div class="card space-y-3">
+              <div class="field-row">
+                <div class="flex items-center gap-1.5 min-w-0" data-help-anchor>
+                  <h3 class="section-title truncate">🎯 Mijn Leerdoelen (<span id="goals-color-label">Groen</span>)</h3>
+                  <button type="button" class="help-btn" data-help="leerdoelen" aria-label="Uitleg leerdoelen" aria-expanded="false">?</button>
+                </div>
+                <button type="button" data-action="new-goal" class="btn-small bg-indigo-600 text-white shadow-sm shrink-0">+ Nieuw Leerdoel</button>
+              </div>
+              <div id="plan-daily-goals" class="space-y-2"></div>
+            </div>
+
+            <!-- SIGNALERINGSPLAN -->
+            <div class="card space-y-3">
+              <div class="field-row border-b border-slate-200 pb-2">
+                <div class="flex items-center gap-1.5 min-w-0" data-help-anchor>
+                  <h3 class="section-title truncate">📋 Mijn Signaleringsplan (<span id="plan-phase-title">Groen</span>)</h3>
+                  <button type="button" class="help-btn" data-help="signaleringsplan" aria-label="Uitleg signaleringsplan" aria-expanded="false">?</button>
+                </div>
+                <button type="button" data-action="open-plan-editor" class="btn-small bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 shrink-0">✏️ Plan Wijzigen</button>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 space-y-1.5">
+                <div class="field-row" data-help-anchor>
+                  <div class="text-xs font-extrabold text-slate-800">👀 Hoe zit ik erbij in deze fase? (Signalen)</div>
+                  <button type="button" class="help-btn" data-help="plan-signalen" aria-label="Uitleg signalen" aria-expanded="false">?</button>
+                </div>
+                <p id="plan-signals-text" class="text-xs text-slate-600 leading-relaxed whitespace-pre-line"></p>
+                <div id="plan-signal-chips" class="flex flex-wrap gap-1"></div>
+              </div>
+
+              <div class="p-3 rounded-xl bg-indigo-50/60 border border-indigo-100 space-y-1">
+                <div class="field-row" data-help-anchor>
+                  <div class="text-xs font-extrabold text-indigo-950">💪 Wat kan ik ZELF doen om te herstellen / groen te blijven?</div>
+                  <button type="button" class="help-btn" data-help="plan-zelf" aria-label="Uitleg eigen acties" aria-expanded="false">?</button>
+                </div>
+                <ul id="plan-self-actions" class="text-xs text-indigo-900 space-y-1 list-disc pl-4 leading-relaxed"></ul>
+              </div>
+
+              <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-1">
+                <div class="field-row" data-help-anchor>
+                  <div class="text-xs font-extrabold text-emerald-950">🤝 Wat helpt mij van mijn Netwerk?</div>
+                  <button type="button" class="help-btn" data-help="plan-netwerk" aria-label="Uitleg netwerkacties" aria-expanded="false">?</button>
+                </div>
+                <ul id="plan-network-actions" class="text-xs text-emerald-900 space-y-1 list-disc pl-4 leading-relaxed"></ul>
+              </div>
+            </div>
+          </section>
+
+          <!-- ========================================================= -->
+          <!-- TAB 2: KEUZE-TAFEL                                        -->
+          <!-- ========================================================= -->
+          <section id="client-tab-keuze" hidden class="space-y-4">
+            <div class="bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-900 text-white p-4 rounded-2xl shadow-md">
+              <div class="flex justify-between items-start" data-help-anchor>
+                <div>
+                  <span class="text-[10px] uppercase tracking-wider bg-white/20 text-white px-2.5 py-0.5 rounded-full font-bold">Visuele Keuze-Hulp</span>
+                  <h2 class="text-base font-black mt-1.5">⚖️ De Keuze-Tafel</h2>
+                </div>
+                <button type="button" class="help-btn help-btn-light w-6 h-6 text-xs" data-help="keuzetafel" data-help-dark aria-label="Uitleg keuze-tafel" aria-expanded="false">?</button>
+              </div>
+              <p class="text-xs text-indigo-100 mt-1 leading-relaxed">
+                Zet twee keuzes visueel naast elkaar: wat gebeurt er met je <strong>geld 💰</strong>, je <strong>rust 🧠</strong> en je <strong>spaardoel 🎯</strong>?
+              </p>
+            </div>
+
+            <div class="card space-y-3">
+              <div class="field-row" data-help-anchor>
+                <span class="text-xs font-extrabold uppercase tracking-wider text-slate-600">1. Waar gaat je keuze over?</span>
+                <button type="button" class="help-btn" data-help="keuze-onderwerp" aria-label="Uitleg onderwerp" aria-expanded="false">?</button>
+              </div>
+              <div class="grid grid-cols-4 gap-2">
+                <button type="button" data-action="select-scenario" data-key="scooter" id="scen-btn-scooter" class="p-2.5 rounded-2xl border-2 border-slate-200 bg-slate-50 flex flex-col items-center text-center transition-all">
+                  <span class="text-3xl">🛵</span>
+                  <span class="text-[10px] font-extrabold text-slate-700 mt-1 leading-tight">Kopen op Krediet</span>
+                </button>
+                <button type="button" data-action="select-scenario" data-key="werk_stoppen" id="scen-btn-werk_stoppen" class="p-2.5 rounded-2xl border-2 border-slate-200 bg-slate-50 flex flex-col items-center text-center transition-all">
+                  <span class="text-3xl">🛑</span>
+                  <span class="text-[10px] font-extrabold text-slate-700 mt-1 leading-tight">Werk Stoppen</span>
+                </button>
+                <button type="button" data-action="select-scenario" data-key="geld_uitlenen" id="scen-btn-geld_uitlenen" class="p-2.5 rounded-2xl border-2 border-slate-200 bg-slate-50 flex flex-col items-center text-center transition-all">
+                  <span class="text-3xl">💸</span>
+                  <span class="text-[10px] font-extrabold text-slate-700 mt-1 leading-tight">Geld Uitlenen</span>
+                </button>
+                <button type="button" data-action="select-scenario" data-key="custom" id="scen-btn-custom" class="p-2.5 rounded-2xl border-2 border-slate-200 bg-slate-50 flex flex-col items-center text-center transition-all">
+                  <span class="text-3xl">✏️</span>
+                  <span class="text-[10px] font-extrabold text-slate-700 mt-1 leading-tight">Eigen Keuze</span>
+                </button>
+              </div>
+
+              <form id="custom-scenario-box" hidden class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2.5" novalidate>
+                <div>
+                  <div class="field-row" data-help-anchor>
+                    <label for="custom-dilemma-title" class="text-xs font-extrabold text-slate-800">Wat wil je doen of kopen?</label>
+                    <button type="button" class="help-btn" data-help="custom-titel" aria-label="Uitleg eigen keuze" aria-expanded="false">?</button>
+                  </div>
+                  <input type="text" id="custom-dilemma-title" maxlength="120" placeholder="Bijv. Nieuwe PlayStation kopen" class="input bg-white mt-1">
+                </div>
+                <div>
+                  <div class="field-row" data-help-anchor>
+                    <label for="custom-dilemma-cost" class="text-xs font-extrabold text-slate-800">Hoeveel kost het ongeveer?</label>
+                    <button type="button" class="help-btn" data-help="custom-kosten" aria-label="Uitleg kosten" aria-expanded="false">?</button>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2 mt-1">
+                    <input type="number" id="custom-dilemma-cost" min="0" max="100000" step="1" inputmode="decimal" placeholder="Kosten in € (bijv. 50)" class="input bg-white">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl py-2.5 shadow">🎨 Teken Gevolgen</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div class="field-row px-1" data-help-anchor>
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">2. Vergelijk de twee paden</span>
+              <button type="button" class="help-btn" data-help="keuze-paden" aria-label="Uitleg paden" aria-expanded="false">?</button>
+            </div>
+            <div id="scenario-comparison-container" class="space-y-3"></div>
+
+            <div class="card space-y-2.5">
+              <div class="field-row" data-help-anchor>
+                <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-600">📌 Mijn Gekozen Pad &amp; Afspraak</h4>
+                <button type="button" class="help-btn" data-help="gekozen" aria-label="Uitleg gekozen paden" aria-expanded="false">?</button>
+              </div>
+              <div id="saved-choices-list" class="space-y-2"></div>
+            </div>
+          </section>
+
+          <!-- ========================================================= -->
+          <!-- TAB 3: OPDRACHTEN                                         -->
+          <!-- ========================================================= -->
+          <section id="client-tab-taken" hidden class="space-y-4">
+            <form id="task-form" class="card space-y-3" novalidate>
+              <div class="flex justify-between items-start gap-2" data-help-anchor>
+                <div>
+                  <h2 id="task-form-heading" class="section-title">🤝 Hulpvraag of Opdracht Plaatsen</h2>
+                  <p class="text-[11px] text-slate-500">Klein of groot: vraag iemand specifiek of zet hem open voor je groep.</p>
+                </div>
+                <button type="button" class="help-btn w-6 h-6 text-xs" data-help="opdrachten" aria-label="Uitleg opdrachten" aria-expanded="false">?</button>
+              </div>
+
+              <div class="space-y-2.5">
+                <div>
+                  <div class="field-row" data-help-anchor>
+                    <label for="task-input-title" class="label">1. Wat wil je samen doen?</label>
+                    <button type="button" class="help-btn" data-help="task-title" aria-label="Uitleg wat" aria-expanded="false">?</button>
+                  </div>
+                  <input type="text" id="task-input-title" maxlength="200" placeholder="Bijv. Samen administratie ordenen of naar milieustraat" class="input mt-1">
+                </div>
+
+                <div>
+                  <div class="field-row" data-help-anchor>
+                    <label for="task-input-desc" class="label">2. Extra uitleg (wat heb je zelf al gedaan?)</label>
+                    <button type="button" class="help-btn" data-help="task-desc" aria-label="Uitleg extra uitleg" aria-expanded="false">?</button>
+                  </div>
+                  <textarea id="task-input-desc" rows="2" maxlength="2000" placeholder="Bijv. Ik heb alles al klaargelegd op tafel" class="input mt-1 font-medium"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <div class="field-row" data-help-anchor>
+                      <label for="task-input-duration" class="label">3. Tijdsduur</label>
+                      <button type="button" class="help-btn" data-help="task-duration" aria-label="Uitleg tijdsduur" aria-expanded="false">?</button>
+                    </div>
+                    <select id="task-input-duration" class="input mt-1">
+                      <option value="short">⏱️ Kort (15-30 min)</option>
+                      <option value="hour" selected>🕐 Gemiddeld (1 uur)</option>
+                      <option value="large">🛠️ Groot (2 tot 3 uur)</option>
+                      <option value="half_day">📅 Heel dagdeel</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div class="field-row" data-help-anchor>
+                      <label for="task-input-datetime" class="label">4. Dag &amp; tijdstip</label>
+                      <button type="button" class="help-btn" data-help="task-datetime" aria-label="Uitleg dag en tijd" aria-expanded="false">?</button>
+                    </div>
+                    <input type="text" id="task-input-datetime" maxlength="120" placeholder="Bijv. Woensdag 09:00" class="input mt-1">
+                  </div>
+                </div>
+
+                <div>
+                  <div class="field-row" data-help-anchor>
+                    <label for="task-input-target" class="label">5. Aan wie vragen?</label>
+                    <button type="button" class="help-btn" data-help="task-target" aria-label="Uitleg aan wie" aria-expanded="false">?</button>
+                  </div>
+                  <select id="task-input-target" class="input mt-1 bg-indigo-50 border-indigo-200 font-bold text-indigo-950"></select>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                  <button type="button" data-action="cancel-task-edit" id="btn-cancel-task-edit" hidden class="w-1/3 btn-soft bg-slate-200">Annuleer</button>
+                  <button type="submit" id="btn-submit-task" class="flex-1 btn-primary">📤 Opdracht Plaatsen &amp; Melding Sturen</button>
+                </div>
+              </div>
+            </form>
+
+            <div class="card space-y-3">
+              <div class="field-row">
+                <div class="flex items-center gap-1.5" data-help-anchor>
+                  <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-600">📋 Mijn Uitgezette Opdrachten</h3>
+                  <button type="button" class="help-btn" data-help="task-list" aria-label="Uitleg opdrachtenlijst" aria-expanded="false">?</button>
+                </div>
+                <span class="text-[10px] text-slate-400 font-semibold">Tik op ✏️ om aan te passen</span>
+              </div>
+              <div id="client-tasks-list" class="space-y-3"></div>
+            </div>
+          </section>
+
+          <!-- ========================================================= -->
+          <!-- TAB 4: MIJN CIRKEL                                        -->
+          <!-- ========================================================= -->
+          <section id="client-tab-cirkel" hidden class="space-y-4">
+            <div class="card space-y-3">
+              <div class="flex justify-between items-start gap-2">
+                <div>
+                  <div class="flex items-center gap-1.5" data-help-anchor>
+                    <h2 class="section-title">🛡️ Mijn Netwerk &amp; Kijkrechten</h2>
+                    <button type="button" class="help-btn" data-help="cirkel" aria-label="Uitleg mijn cirkel" aria-expanded="false">?</button>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-0.5">Jij bent de baas: vink per persoon aan wat zij mogen zien in hun Netwerk Weergave.</p>
+                </div>
+                <button type="button" data-action="toggle-invite-form" class="shrink-0 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-2 rounded-xl shadow-sm">+ Persoon</button>
+              </div>
+
+              <form id="invite-person-box" hidden class="bg-indigo-50/80 border border-indigo-200 p-3.5 rounded-2xl space-y-2.5" novalidate>
+                <div class="field-row" data-help-anchor>
+                  <h4 id="invite-form-heading" class="text-xs font-extrabold text-indigo-950">✉️ Nieuw Netwerklid Uitnodigen</h4>
+                  <button type="button" class="help-btn" data-help="invite-mail" aria-label="Uitleg uitnodigen" aria-expanded="false">?</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <div class="field-row" data-help-anchor>
+                      <label for="invite-name" class="label">Naam</label>
+                      <button type="button" class="help-btn" data-help="invite-name" aria-label="Uitleg naam" aria-expanded="false">?</button>
+                    </div>
+                    <input type="text" id="invite-name" maxlength="120" placeholder="Voor- en achternaam" class="input bg-white mt-1">
+                  </div>
+                  <div>
+                    <div class="field-row" data-help-anchor>
+                      <label for="invite-role" class="label">Rol</label>
+                      <button type="button" class="help-btn" data-help="invite-role" aria-label="Uitleg rol" aria-expanded="false">?</button>
+                    </div>
+                    <select id="invite-role" class="input bg-white mt-1"></select>
+                  </div>
+                </div>
+                <div>
+                  <div class="field-row" data-help-anchor>
+                    <label for="invite-email" class="label">E-mailadres</label>
+                    <button type="button" class="help-btn" data-help="invite-email" aria-label="Uitleg e-mailadres" aria-expanded="false">?</button>
+                  </div>
+                  <input type="email" id="invite-email" maxlength="254" inputmode="email" placeholder="Bijv. naam@voorbeeld.nl" class="input bg-white mt-1">
+                </div>
+                <div class="flex justify-end gap-2 pt-1">
+                  <button type="button" data-action="toggle-invite-form" class="text-xs px-3 py-1.5 text-slate-600 font-semibold">Annuleren</button>
+                  <button type="submit" id="btn-submit-invite" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl shadow">Uitnodigen &amp; Koppelen</button>
+                </div>
+              </form>
+
+              <div id="circle-members-list" class="space-y-3 pt-1"></div>
+            </div>
+          </section>
+        </main>
+
+        <!-- Onderbalk navigatie -->
+        <nav class="bg-white border-t border-slate-200 px-2 py-2 grid grid-cols-4 gap-1 shrink-0" aria-label="Onderdelen">
+          <button type="button" data-action="client-tab" data-tab="status" id="cnav-status" class="flex flex-col items-center text-indigo-600 py-1 font-bold relative">
+            <span class="text-lg">🚦</span>
+            <span class="text-[10px] mt-0.5">Stoplicht</span>
+          </button>
+          <button type="button" data-action="client-tab" data-tab="keuze" id="cnav-keuze" class="flex flex-col items-center text-slate-400 py-1 font-medium relative">
+            <span class="text-lg">⚖️</span>
+            <span class="text-[10px] mt-0.5">Keuze-Tafel</span>
+          </button>
+          <button type="button" data-action="client-tab" data-tab="taken" id="cnav-taken" class="flex flex-col items-center text-slate-400 py-1 font-medium relative">
+            <span class="text-lg">🤝</span>
+            <span class="text-[10px] mt-0.5">Opdrachten</span>
+            <span id="tasks-badge" hidden class="absolute top-0 right-3 min-w-4 h-4 px-1 bg-rose-500 text-white rounded-full text-[9px] flex items-center justify-center font-extrabold">!</span>
+          </button>
+          <button type="button" data-action="client-tab" data-tab="cirkel" id="cnav-cirkel" class="flex flex-col items-center text-slate-400 py-1 font-medium relative">
+            <span class="text-lg">🛡️</span>
+            <span class="text-[10px] mt-0.5">Mijn Cirkel</span>
+          </button>
+        </nav>
+
+        <!-- Leeg: gebruiker heeft (nog) geen eigen profiel -->
+        <div id="client-no-profile" hidden class="flex-1 bg-slate-100 overflow-y-auto no-scrollbar p-4 space-y-4"></div>
+      </div>
+
+      <!-- =========================================================== -->
+      <!-- DASHBOARD 2: NETWERK WEERGAVE                               -->
+      <!-- =========================================================== -->
+      <div id="dashboard-network" hidden class="flex-1 flex flex-col overflow-hidden bg-slate-100">
+        <header class="bg-slate-800 text-white pt-4 pb-4 px-5 rounded-b-[24px] shadow shrink-0">
+          <div class="flex justify-between items-center gap-3">
+            <div class="min-w-0">
+              <span id="net-viewer-role" class="text-[10px] uppercase tracking-wider bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded font-bold">Netwerk Portaal</span>
+              <h2 id="net-viewer-name" class="text-lg font-black mt-1 truncate">-</h2>
+              <p id="net-viewer-email" class="text-[11px] text-slate-300 truncate">-</p>
+            </div>
+            <div class="text-right shrink-0">
+              <span class="text-[10px] text-slate-400 block">Netwerk van:</span>
+              <span id="net-client-name" class="text-xs font-extrabold text-white">-</span>
+              <div class="flex justify-end gap-1 mt-1">
+                <button type="button" data-action="refresh-network" class="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg">↻ Vernieuwen</button>
+                <button type="button" data-action="open-account" class="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg" aria-label="Account">👤</button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main id="network-main" class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
+          <div id="net-preview-banner" hidden class="bg-amber-50 border border-amber-300 p-3 rounded-2xl text-xs text-amber-950 leading-relaxed"></div>
+          <div id="net-permissions-banner" class="bg-white p-3.5 rounded-2xl border border-slate-200 flex items-center justify-between gap-2 text-xs flex-wrap"></div>
+          <div id="net-section-mood"></div>
+          <div id="net-section-tasks"></div>
+          <div id="net-section-finance"></div>
+
+          <div id="net-log-card" class="card space-y-2.5">
+            <div class="field-row" data-help-anchor>
+              <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-500">📬 Meldingen</h3>
+              <button type="button" class="help-btn" data-help="net-log" aria-label="Uitleg meldingen" aria-expanded="false">?</button>
+            </div>
+            <div id="net-notifications-log" class="space-y-2"></div>
+          </div>
+
+          <div class="card space-y-2.5">
+            <div class="field-row" data-help-anchor>
+              <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-500">➕ Uitnodigingscode invullen</h3>
+              <button type="button" class="help-btn" data-help="net-code" aria-label="Uitleg uitnodigingscode" aria-expanded="false">?</button>
+            </div>
+            <form data-form="invite-code" class="flex gap-2" novalidate>
+              <input type="text" name="code" autocomplete="off" autocapitalize="characters" maxlength="12" class="input uppercase tracking-widest" placeholder="Bijv. K7P2-9QXM" aria-label="Uitnodigingscode">
+              <button type="submit" class="btn-primary shrink-0">Koppelen</button>
+            </form>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL: ACCOUNT                                                -->
+    <!-- ============================================================= -->
+    <div id="account-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="account-modal-title">
+      <div class="modal-panel">
+        <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+          <h3 id="account-modal-title" class="text-base font-black text-slate-900">👤 Account &amp; Profielen</h3>
+          <button type="button" data-action="close-modal" class="modal-close" aria-label="Sluiten">✕</button>
+        </div>
+
+        <div class="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 p-3 rounded-xl">
+          <div class="min-w-0">
+            <div class="text-[10px] font-bold uppercase text-slate-400">Ingelogd als</div>
+            <div id="account-email" class="text-xs font-extrabold text-slate-900 truncate">-</div>
+          </div>
+          <button type="button" data-action="logout" class="btn-small bg-white border border-slate-300 text-slate-700 shrink-0">Uitloggen</button>
+        </div>
+
+        <div class="space-y-2">
+          <div class="field-row" data-help-anchor>
+            <label class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Wissel tussen cliënt-profielen:</label>
+            <button type="button" class="help-btn" data-help="account-switch" aria-label="Uitleg profielen wisselen" aria-expanded="false">?</button>
+          </div>
+          <div id="accounts-switcher-list" class="space-y-2"></div>
+        </div>
+
+        <form id="form-edit-profile" class="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3" novalidate>
+          <div class="field-row" data-help-anchor>
+            <h4 class="text-xs font-extrabold text-slate-900 uppercase tracking-wider">✏️ Gegevens van dit profiel</h4>
+            <button type="button" class="help-btn" data-help="account-edit" aria-label="Uitleg profielgegevens" aria-expanded="false">?</button>
+          </div>
+          <div data-profile-fields="edit"></div>
+          <button type="submit" class="btn-dark w-full">💾 Gegevens Opslaan</button>
+        </form>
+
+        <form id="form-new-profile" class="bg-indigo-50/70 border-2 border-indigo-200 p-4 rounded-2xl space-y-3" novalidate>
+          <div class="field-row" data-help-anchor>
+            <h4 class="text-xs font-extrabold text-indigo-950 uppercase tracking-wider">➕ Nieuw Blanco Cliënt-Account Maken</h4>
+            <button type="button" class="help-btn" data-help="account-new" aria-label="Uitleg nieuw blanco account" aria-expanded="false">?</button>
+          </div>
+          <div data-profile-fields="new"></div>
+          <button type="submit" class="btn-primary w-full">✨ Start Nieuw Blanco Account</button>
+        </form>
+
+        <div class="bg-white border border-slate-200 p-4 rounded-2xl space-y-2.5">
+          <div class="field-row" data-help-anchor>
+            <h4 class="text-xs font-extrabold text-slate-900 uppercase tracking-wider">🧪 Voorbeeld bekijken</h4>
+            <button type="button" class="help-btn" data-help="account-demo" aria-label="Uitleg demo-profiel" aria-expanded="false">?</button>
+          </div>
+          <button type="button" data-action="load-demo" class="btn-soft w-full border border-slate-300">🧪 Voorbeeld/Demo-profiel (Daan Vermeulen) laden</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL: VERPLICHTE REFLECTIE-CHECK                             -->
+    <!-- ============================================================= -->
+    <div id="mood-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-target-title">
+      <form id="mood-form" class="modal-panel" novalidate>
+        <div class="flex justify-between items-start border-b border-slate-200 pb-3">
+          <div>
+            <span id="modal-target-badge" class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded">Stoplicht wijzigen</span>
+            <h3 id="modal-target-title" class="text-base font-black text-slate-900 mt-1">Korte reflectie-check</h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">Vul alle 3 de stappen in. Zo weet je netwerk wat er speelt.</p>
+          </div>
+          <button type="button" data-action="close-modal" class="modal-close" aria-label="Sluiten">✕</button>
+        </div>
+
+        <div class="space-y-4 text-xs">
+          <div id="mood-step-1">
+            <div class="field-row mb-1.5" data-help-anchor>
+              <label class="font-extrabold text-slate-700"><span data-step-check="1">1.</span> Wat merk je bij jezelf? (Tik aan)</label>
+              <button type="button" class="help-btn" data-help="mood-signalen" aria-label="Uitleg signalen aantikken" aria-expanded="false">?</button>
+            </div>
+            <div id="modal-signal-chips" class="flex flex-wrap gap-1.5"></div>
+            <div class="flex gap-2 mt-2">
+              <input type="text" id="modal-new-signal" maxlength="80" placeholder="Ander signaal? Typ het hier…" class="input">
+              <button type="button" data-action="add-mood-signal" class="btn-small bg-indigo-100 text-indigo-800 shrink-0">+ Toevoegen</button>
+            </div>
+            <p data-step-error="1" hidden class="text-[11px] font-bold text-rose-700 mt-1">Tik minimaal één signaal aan.</p>
+          </div>
+
+          <div id="mood-step-2">
+            <div class="field-row mb-1" data-help-anchor>
+              <label for="modal-reason-input" class="font-extrabold text-slate-700"><span data-step-check="2">2.</span> Wat wil je dat je netwerk/begeleider weet?</label>
+              <button type="button" class="help-btn" data-help="mood-context" aria-label="Uitleg context" aria-expanded="false">?</button>
+            </div>
+            <textarea id="modal-reason-input" rows="3" maxlength="2000" placeholder="Typ hier kort wat er speelt vandaag…" class="input font-medium"></textarea>
+            <p data-step-error="2" hidden class="text-[11px] font-bold text-rose-700 mt-1">Schrijf kort wat er speelt (één zin is genoeg).</p>
+          </div>
+
+          <div id="mood-step-3">
+            <div class="field-row mb-1" data-help-anchor>
+              <label for="modal-self-action-select" class="font-extrabold text-slate-700"><span data-step-check="3">3.</span> Welke actie ga je nu ZELF doen?</label>
+              <button type="button" class="help-btn" data-help="mood-actie" aria-label="Uitleg eigen actie" aria-expanded="false">?</button>
+            </div>
+            <select id="modal-self-action-select" data-change="mood-action-select" class="input bg-indigo-50 border-indigo-200 font-bold text-indigo-950"></select>
+            <input type="text" id="modal-self-action-custom" hidden maxlength="300" placeholder="Typ je eigen herstelactie…" class="input mt-2">
+            <label id="modal-save-action-row" hidden class="flex items-center gap-2 mt-2 text-[11px] text-slate-600">
+              <input type="checkbox" id="modal-save-action" checked class="w-4 h-4 accent-indigo-600"> Deze actie ook bewaren in mijn signaleringsplan
+            </label>
+            <p data-step-error="3" hidden class="text-[11px] font-bold text-rose-700 mt-1">Kies of typ wat je nu zelf gaat doen.</p>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" data-action="close-modal" class="flex-1 btn-soft">Annuleren</button>
+          <button type="submit" class="flex-1 btn-dark">Opslaan &amp; Melding Sturen</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL: LEERDOEL                                               -->
+    <!-- ============================================================= -->
+    <div id="goal-editor-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="goal-modal-heading">
+      <form id="goal-form" class="modal-panel" novalidate>
+        <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+          <h3 id="goal-modal-heading" class="text-base font-black text-slate-900">🎯 Leerdoel</h3>
+          <button type="button" data-action="close-modal" class="modal-close" aria-label="Sluiten">✕</button>
+        </div>
+        <div class="space-y-3 text-xs">
+          <div>
+            <div class="field-row" data-help-anchor>
+              <label for="goal-edit-color" class="label">Voor welke stoplicht-kleur is dit leerdoel?</label>
+              <button type="button" class="help-btn" data-help="goal-kleur" aria-label="Uitleg kleur" aria-expanded="false">?</button>
+            </div>
+            <select id="goal-edit-color" class="input mt-1 font-bold">
+              <option value="green">🟢 Groen (Zelfstandig oefenen)</option>
+              <option value="orange">🟠 Oranje (Opgeknipt / Kleiner doel)</option>
+              <option value="red">🔴 Rood (Rust &amp; Veiligheid)</option>
+            </select>
+          </div>
+          <div>
+            <div class="field-row" data-help-anchor>
+              <label for="goal-edit-cat" class="label">Categorie (bijv. Administratie, Koken, Dagritme)</label>
+              <button type="button" class="help-btn" data-help="goal-categorie" aria-label="Uitleg categorie" aria-expanded="false">?</button>
+            </div>
+            <input type="text" id="goal-edit-cat" maxlength="120" placeholder="Bijv. Administratie & Post" class="input mt-1">
+          </div>
+          <div>
+            <div class="field-row" data-help-anchor>
+              <label for="goal-edit-title" class="label">Concrete actie / leerdoel</label>
+              <button type="button" class="help-btn" data-help="goal-titel" aria-label="Uitleg leerdoel" aria-expanded="false">?</button>
+            </div>
+            <input type="text" id="goal-edit-title" maxlength="300" placeholder="Bijv. Brieven op de vaste plek leggen" class="input mt-1">
+          </div>
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button type="button" data-action="close-modal" class="flex-1 btn-soft">Annuleren</button>
+          <button type="submit" class="flex-1 btn-primary">Leerdoel Opslaan</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL: SIGNALERINGSPLAN BEWERKEN                              -->
+    <!-- ============================================================= -->
+    <div id="signaling-editor-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="sig-modal-title">
+      <form id="sig-form" class="modal-panel !space-y-3.5" novalidate>
+        <div class="flex justify-between items-center border-b border-slate-200 pb-2.5">
+          <h3 id="sig-modal-title" class="text-sm font-black text-slate-900">✏️ Signaleringsplan Op Maat Maken</h3>
+          <button type="button" data-action="close-modal" class="modal-close" aria-label="Sluiten">✕</button>
+        </div>
+        <div class="space-y-3 text-xs">
+          <div>
+            <div class="field-row" data-help-anchor>
+              <label for="sig-edit-color" class="label">Welke fase wil je aanpassen?</label>
+              <button type="button" class="help-btn" data-help="sig-fase" aria-label="Uitleg fase" aria-expanded="false">?</button>
+            </div>
+            <select id="sig-edit-color" data-change="sig-color" class="input mt-1 bg-indigo-50 border-indigo-200 font-bold text-indigo-950">
+              <option value="green">🟢 Fase Groen</option>
+              <option value="orange">🟠 Fase Oranje</option>
+              <option value="red">🔴 Fase Rood</option>
+            </select>
+          </div>
+          <div>
+            <div class="field-row" data-help-anchor>
+              <label for="sig-edit-signals" class="label">1. Hoe zit je erbij in deze fase? (Beschrijving)</label>
+              <button type="button" class="help-btn" data-help="sig-signalen-tekst" aria-label="Uitleg beschrijving" aria-expanded="false">?</button>
+            </div>
+            <textarea id="sig-edit-signals" rows="3" maxlength="4000" class="input mt-1 font-medium" placeholder="Bijv. Ik slaap slecht, laat post liggen en reageer kortaf."></textarea>
+          </div>
+          <div data-list-editor="signal_chips"></div>
+          <div data-list-editor="self_actions"></div>
+          <div data-list-editor="network_actions"></div>
+        </div>
+        <p id="sig-dirty-note" hidden class="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 p-2 rounded-lg">Let op: je hebt nog niet-opgeslagen wijzigingen. Tik op "Wijzigingen Opslaan".</p>
+        <div class="flex gap-2 pt-2">
+          <button type="button" data-action="close-modal" class="flex-1 btn-soft">Annuleren</button>
+          <button type="submit" class="flex-1 btn-dark">Wijzigingen Opslaan</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL: UITNODIGING DELEN                                      -->
+    <!-- ============================================================= -->
+    <div id="invite-share-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="invite-share-title">
+      <div class="modal-panel">
+        <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+          <h3 id="invite-share-title" class="text-base font-black text-slate-900">✉️ Uitnodiging versturen</h3>
+          <button type="button" data-action="close-modal" class="modal-close" aria-label="Sluiten">✕</button>
+        </div>
+        <div id="invite-share-body" class="space-y-3 text-xs"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL: MELDINGEN (CLIËNT)                                     -->
+    <!-- ============================================================= -->
+    <div id="notifications-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="notifications-title">
+      <div class="modal-panel">
+        <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+          <div class="flex items-center gap-1.5" data-help-anchor>
+            <h3 id="notifications-title" class="text-base font-black text-slate-900">🔔 Meldingen</h3>
+            <button type="button" class="help-btn" data-help="meldingen" aria-label="Uitleg meldingen" aria-expanded="false">?</button>
+          </div>
+          <button type="button" data-action="close-modal" class="modal-close" aria-label="Sluiten">✕</button>
+        </div>
+        <div id="notifications-list" class="space-y-2"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL: BEVESTIGEN                                             -->
+    <!-- ============================================================= -->
+    <div id="confirm-modal" class="modal !z-50" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal-panel !space-y-3">
+        <h3 id="confirm-title" class="text-base font-black text-slate-900">Weet je het zeker?</h3>
+        <p id="confirm-body" class="text-xs text-slate-600 leading-relaxed"></p>
+        <div class="flex gap-2 pt-1">
+          <button type="button" id="confirm-cancel" class="flex-1 btn-soft">Nee, terug</button>
+          <button type="button" id="confirm-ok" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-3 rounded-xl shadow">Ja, verwijderen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MODAL: INFORMATIE                                             -->
+    <!-- ============================================================= -->
+    <div id="info-modal" class="modal !z-50" hidden role="dialog" aria-modal="true" aria-labelledby="info-title">
+      <div class="modal-panel !space-y-3">
+        <h3 id="info-title" class="text-base font-black text-slate-900"></h3>
+        <div id="info-body" class="text-xs text-slate-600 leading-relaxed space-y-2"></div>
+        <button type="button" data-action="close-modal" class="btn-dark w-full">Begrepen</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
