@@ -61,6 +61,18 @@ Deno.serve(async (req) => {
     return json(400, { error: "invalid_name", message: "Vul je naam in (maximaal 120 tekens)." });
   }
 
+  // Beheerdersadressen kunnen niet via de open registratie worden aangemaakt.
+  // Zo kan niemand anders het beheerdersaccount claimen. De beheerder maakt het
+  // account één keer aan in Supabase (Authentication → Users → Add user).
+  const RESERVED = (Deno.env.get("RESERVED_EMAILS") ?? "y.lemaalem@gmail.com")
+    .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  if (RESERVED.includes(email)) {
+    return json(403, {
+      error: "reserved_email",
+      message: "Dit e-mailadres is gereserveerd voor de beheerder. Maak dit account één keer aan in Supabase (Authentication → Users → Add user) en log daarna hier in.",
+    });
+  }
+
   const key = adminKey();
   const url = Deno.env.get("SUPABASE_URL");
   if (!key || !url) return json(500, { error: "server_config", message: "De server is niet goed ingesteld." });
