@@ -1,7 +1,7 @@
 // UI-doorlooptest (headless browser) tegen de lokale dev-server.
 // De dev-server moet met een TESTproject draaien, niet met productie:
-//   VITE_SUPABASE_URL=... VITE_SUPABASE_PUBLISHABLE_KEY=... npx vite --port 5199
-//   EK_SUPABASE_URL=... EK_SUPABASE_KEY=... node tests/e2e/ui.test.mjs http://127.0.0.1:5199/
+//   VITE_SUPABASE_URL=... VITE_SUPABASE_PUBLISHABLE_KEY=... npx vite --port 5299
+//   EK_SUPABASE_URL=... EK_SUPABASE_KEY=... node tests/e2e/ui.test.mjs http://127.0.0.1:5299/
 // De testaccounts (tests/e2e/.creds.json) maakt api.test.mjs aan.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -33,6 +33,15 @@ const browser = await chromium.launch({ channel: process.env.EK_BROWSER_CHANNEL 
 
 async function newPage(ctxOpts = {}) {
   const ctx = await browser.newContext({ viewport: { width: 430, height: 900 }, locale: 'nl-NL', ...ctxOpts });
+  // Vangnet: draait de dev-server per ongeluk met productie-instellingen, dan
+  // blokkeren we elk verzoek naar de productiedatabase en stopt de test.
+  if (process.env.EK_ALLOW_PROD !== '1') {
+    await ctx.route('https://kjzkyjyvlrwisuxrytkt.supabase.co/**', (route) => {
+      console.error('\nGeblokkeerd: de app praat met de PRODUCTIEdatabase. Start de dev-server met VITE_SUPABASE_URL van het testproject.');
+      route.abort();
+      process.exit(2);
+    });
+  }
   const page = await ctx.newPage();
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(`[${m.type()}] ${m.text()}`); });
   page.on('pageerror', (e) => consoleErrors.push(`[pageerror] ${e.message}`));
@@ -89,8 +98,12 @@ await p.waitForSelector('#mood-modal[hidden]', { state: 'attached' });
 await p.waitForFunction(() => document.getElementById('client-header').className.includes('bg-amber-500'));
 ok(true, 'header wordt oranje na opslaan');
 ok((await p.textContent('#current-reflection-box')).includes('Brief van de gemeente'), 'status-update zichtbaar');
-ok((await p.textContent('#plan-self-actions')).includes('30 minuten wandelen'), 'eigen actie bewaard in plan oranje');
-ok((await p.textContent('#plan-signal-chips')).includes('Slecht geslapen'), 'nieuw signaal bewaard in plan');
+// De eigen actie wordt na het opslaan van de kleur in het plan bewaard (één extra verzoek).
+const actionSaved = await p.waitForFunction(
+  () => document.getElementById('plan-self-actions').textContent.includes('30 minuten wandelen'),
+  null, { timeout: 10000 }).then(() => true, () => false);
+ok(actionSaved, 'eigen actie bewaard in plan oranje (en meteen zichtbaar)');
+// Pakket A: bij Oranje typ je geen nieuw signaal meer; je tikt alleen signalen uit je plan aan.
 await shot(p, '05-oranje');
 
 // Leerdoelen

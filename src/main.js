@@ -822,7 +822,10 @@ async function confirmMoodChange(e) {
     if (ok && isNewAction && plan.id) {
       const patch = { self_actions: [...(plan.self_actions || []), action] };
       const { error } = await sb.from('signaling_plans').update(patch).eq('id', plan.id);
-      if (!error) Object.assign(plan, patch);
+      if (!error) {
+        Object.assign(plan, patch);
+        renderPlan(); // het plan-scherm was al getekend vóór deze opslag
+      }
     }
   });
 }

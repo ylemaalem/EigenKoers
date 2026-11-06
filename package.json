@@ -11,7 +11,7 @@
     "test": "npm run test:db",
     "test:db": "node tests/db/schema.test.mjs && node tests/db/admin.test.mjs && node tests/db/pakket-a.test.mjs",
     "test:ui-a": "npm run build && python tests/test_pakket_a.py dist",
-    "test:e2e": "node tests/e2e/api.test.mjs && node tests/e2e/ui.test.mjs"
+    "test:e2e": "node -e \"require('fs').rmSync('tests/e2e/.creds.json',{force:true})\" && node tests/e2e/api.test.mjs && node tests/e2e/ui.test.mjs http://127.0.0.1:5299/ && node tests/e2e/pakket-a.live.test.mjs http://127.0.0.1:5299/"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0"
