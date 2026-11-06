@@ -413,8 +413,8 @@ async function loadNetworks() {
 
 const LOADERS = {
   plans: (pid) => sb.from('signaling_plans').select('*').eq('profile_id', pid),
-  goals: (pid) => sb.from('learning_goals').select('*').eq('profile_id', pid).order('created_at', { ascending: true }),
-  members: (pid) => sb.from('network_members').select('*').eq('profile_id', pid).order('created_at', { ascending: true }),
+  goals: (pid) => sb.from('learning_goals').select('*').eq('profile_id', pid).order('created_at', { ascending: true }).order('id', { ascending: true }),
+  members: (pid) => sb.from('network_members').select('*').eq('profile_id', pid).order('created_at', { ascending: true }).order('id', { ascending: true }),
   tasks: (pid) => sb.from('tasks').select('*').eq('profile_id', pid).order('created_at', { ascending: false }),
   choices: (pid) => sb.from('saved_choices').select('*').eq('profile_id', pid).order('created_at', { ascending: false }),
   notifications: (pid) => sb.from('notifications').select('*').eq('profile_id', pid).order('created_at', { ascending: false }).limit(100),
