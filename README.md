@@ -42,6 +42,15 @@ supabase/functions/register  Edge Function voor het aanmaken van accounts
 - Kolomrechten voorkomen dat een gebruiker zelf `owner_id`, `user_id`, `invite_code` of `is_demo` instelt.
 - Alle gebruikerstekst wordt ge-escaped voordat die op het scherm komt.
 
+### Supabase Security Advisor
+
+De Security Advisor meldt 0 fouten. De waarschuwingen *"SECURITY DEFINER function executable"* horen bij het ontwerp: dit zijn precies de RPC's waarmee netwerkleden gefilterde toegang krijgen. Elke functie controleert zelf `auth.uid()` en de kijkrechten. `peek_invite` is als enige ook zonder inloggen bruikbaar. Die functie geeft alleen de voornaam van de cliënt en een gemaskeerd e-mailadres terug, voor het uitnodigingsscherm. *Leaked password protection* is een functie van het Supabase Pro-plan.
+
+## Live
+
+- App: https://ylemaalem.github.io/EigenKoers/
+- Supabase-project: `kjzkyjyvlrwisuxrytkt` (organisatie EigenKoers, regio eu-west-1)
+
 ## Lokaal draaien
 
 ```bash
